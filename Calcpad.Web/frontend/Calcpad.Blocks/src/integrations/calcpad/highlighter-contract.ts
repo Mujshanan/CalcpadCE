@@ -34,7 +34,15 @@ export type HighlighterConstructKind =
 export const BLOCKS_HIGHLIGHTER_CONTRACT_ID = 'calcpad.highlighter.blocks' as const;
 export const BLOCKS_HIGHLIGHTER_CONTRACT_VERSION = 1 as const;
 
-const kindNames: readonly HighlighterConstructKind[] = [
+/**
+ * Ordinals mirror Calcpad.Highlighter.ContentResolution.StructuralConstructKind.
+ * Provenance: Calcpad.Highlighter/ContentResolution/StructuralOutput.cs,
+ * Git blob 98c9c1c7223d61ee65568542d646f07b4a931154 on
+ * hbc-m3/versioned-blocks-adapter.
+ * Any upstream reorder/insertion/removal requires updating this table and
+ * incrementing BLOCKS_HIGHLIGHTER_CONTRACT_VERSION.
+ */
+const kindNames: readonly HighlighterConstructKind[] = Object.freeze([
     'Comment',
     'HtmlOrMarkdownContent',
     'VariableDefinition',
@@ -51,15 +59,23 @@ const kindNames: readonly HighlighterConstructKind[] = [
     'InputDirective',
     'SettingsDirective',
     'MathematicalExpression',
-] as const;
+]);
 
-const originNames: readonly SourceOrigin[] = [
+/**
+ * Ordinals mirror Calcpad.Highlighter.ContentResolution.SourceOrigin.
+ * Provenance: same pinned StructuralOutput.cs blob documented above.
+ */
+const originNames: readonly SourceOrigin[] = Object.freeze([
     'Local',
     'IncludedFile',
     'MacroExpansion',
     'Generated',
     'Unknown',
-];
+]);
+
+/** Exported for contract-drift tests; these are local table sizes, not upstream discovery. */
+export const HIGHLIGHTER_KIND_ORDINAL_COUNT = kindNames.length;
+export const HIGHLIGHTER_ORIGIN_ORDINAL_COUNT = originNames.length;
 
 const knownKinds = new Set<string>(kindNames);
 const knownOrigins = new Set<string>(originNames);
@@ -125,7 +141,11 @@ export type SourceManifestStatus =
     | 'identityMismatch';
 
 export interface ProjectionSourceManifestEntry {
-    /** File key as it appeared in the Highlighter output/resolution pipeline. */
+    /**
+     * File key as it appeared in the Highlighter output/resolution pipeline.
+     * Manifest entries are per locator, so fileId is not unique: multiple
+     * Highlighter locators may resolve to the same host file.
+     */
     readonly highlighterFile: HighlighterFileLocator;
     /** Host identity is present only when resolution succeeded. */
     readonly fileId?: SourceFileId;
@@ -304,11 +324,15 @@ export interface BoundHighlighterConstruct {
     readonly projectionIndex: number;
     /** Known normalized kind, or Unknown when the runtime value is not known. */
     readonly kind: HighlighterConstructKind | 'Unknown';
+    /** UI dispatch must use kindStatus, not kind === 'Unknown'. */
+    readonly kindStatus: 'known' | 'unknown';
     /** Exact enum/string value returned by Highlighter. */
     readonly rawKind: string | number;
     readonly text: string | null;
     readonly name?: string | null;
     readonly origin: SourceOrigin;
+    /** UI dispatch must use originStatus, not origin === 'Unknown'. */
+    readonly originStatus: 'known' | 'unknown';
     /** Exact origin value returned by Highlighter. */
     readonly rawOrigin: string | number;
     /** Original range, retaining the Highlighter file locator. */
@@ -332,9 +356,15 @@ export interface HighlighterContractDiagnostic {
         | 'source-identity-mismatch'
         | 'source-range-invalid'
         | 'source-content-mismatch'
-        | 'source-buffer-provider-failed';
+        | 'source-buffer-provider-failed'
+        | 'unknown-kind-ordinal'
+        | 'unknown-kind-name'
+        | 'unknown-origin-ordinal'
+        | 'unknown-origin-name';
     readonly projectionIndex: number;
     readonly sourceLocator?: string;
+    /** Verbatim Highlighter value, present only for unknown kind/origin diagnostics. */
+    readonly rawValue?: string | number;
 }
 
 export interface BlocksHighlighterContract {
@@ -360,15 +390,31 @@ export function adaptHighlighterOutput(
         const rawRange = construct.range ? Object.freeze({ ...construct.range }) : null;
         const rawKind = construct.kind;
         const rawOrigin = construct.origin;
-        const kind = normalizeKind(rawKind);
-        const origin = normalizeOrigin(rawOrigin);
+        const kindResult = normalizeKind(rawKind);
+        const originResult = normalizeOrigin(rawOrigin);
+        if (kindResult.diagnostic) {
+            diagnostics.push({
+                code: kindResult.diagnostic,
+                projectionIndex,
+                rawValue: rawKind,
+            });
+        }
+        if (originResult.diagnostic) {
+            diagnostics.push({
+                code: originResult.diagnostic,
+                projectionIndex,
+                rawValue: rawOrigin,
+            });
+        }
         const common = {
             projectionIndex,
-            kind,
+            kind: kindResult.kind,
+            kindStatus: kindResult.status,
             rawKind,
             text: construct.text,
             name: construct.name,
-            origin,
+            origin: originResult.origin,
+            originStatus: originResult.status,
             rawOrigin,
             rawRange,
             sourceLocator: rawRange?.file,
@@ -388,11 +434,28 @@ export function adaptHighlighterOutput(
         const resolution = snapshots.resolveHighlighterFile(rawRange.file);
         const snapshot = resolution.snapshot;
         if (!snapshot) {
-            const mapping = resolution.status === 'identityUnavailable'
-                ? 'identityUnavailable'
-                : resolution.status === 'identityMismatch'
-                    ? 'identityMismatch'
-                    : 'bufferUnavailable';
+            let mapping: Exclude<ConstructMappingStatus, 'mapped' | 'unmapped' | 'invalidRange'>;
+            switch (resolution.status) {
+                case 'identityUnavailable':
+                    mapping = 'identityUnavailable';
+                    break;
+                case 'identityMismatch':
+                    mapping = 'identityMismatch';
+                    break;
+                case 'bufferUnavailable':
+                    mapping = 'bufferUnavailable';
+                    break;
+                case 'captured':
+                    throw new Error(
+                        `highlighter-contract: captured resolution missing snapshot at projectionIndex=${projectionIndex}`,
+                    );
+                default: {
+                    const exhaustive: never = resolution.status;
+                    throw new Error(
+                        `highlighter-contract: unhandled resolution status: ${String(exhaustive)}`,
+                    );
+                }
+            }
             diagnostics.push({
                 code: resolution.failureReason === 'snapshot-provider-failed'
                     ? 'source-buffer-provider-failed'
@@ -486,12 +549,48 @@ function freezeSnapshot(snapshot: SourceBufferSnapshot): SourceBufferSnapshot {
     });
 }
 
-function normalizeKind(kind: string | number): HighlighterConstructKind | 'Unknown' {
-    if (typeof kind === 'number') return kindNames[kind] ?? 'Unknown';
-    return knownKinds.has(kind) ? kind as HighlighterConstructKind : 'Unknown';
+interface NormalizedKindResult {
+    readonly kind: HighlighterConstructKind | 'Unknown';
+    readonly status: 'known' | 'unknown';
+    readonly diagnostic?: 'unknown-kind-ordinal' | 'unknown-kind-name';
 }
 
-function normalizeOrigin(origin: string | number): SourceOrigin {
-    if (typeof origin === 'number') return originNames[origin] ?? 'Unknown';
-    return knownOrigins.has(origin) ? origin as SourceOrigin : 'Unknown';
+interface NormalizedOriginResult {
+    readonly origin: SourceOrigin;
+    readonly status: 'known' | 'unknown';
+    readonly diagnostic?: 'unknown-origin-ordinal' | 'unknown-origin-name';
+}
+
+function normalizeKind(kind: string | number): NormalizedKindResult {
+    if (typeof kind === 'number') {
+        if (!Number.isInteger(kind) || kind < 0 || kind >= kindNames.length) {
+            return {
+                kind: 'Unknown',
+                status: 'unknown',
+                diagnostic: 'unknown-kind-ordinal',
+            };
+        }
+        return { kind: kindNames[kind], status: 'known' };
+    }
+    if (knownKinds.has(kind)) {
+        return { kind: kind as HighlighterConstructKind, status: 'known' };
+    }
+    return { kind: 'Unknown', status: 'unknown', diagnostic: 'unknown-kind-name' };
+}
+
+function normalizeOrigin(origin: string | number): NormalizedOriginResult {
+    if (typeof origin === 'number') {
+        if (!Number.isInteger(origin) || origin < 0 || origin >= originNames.length) {
+            return {
+                origin: 'Unknown',
+                status: 'unknown',
+                diagnostic: 'unknown-origin-ordinal',
+            };
+        }
+        return { origin: originNames[origin], status: 'known' };
+    }
+    if (knownOrigins.has(origin)) {
+        return { origin: origin as SourceOrigin, status: 'known' };
+    }
+    return { origin: 'Unknown', status: 'unknown', diagnostic: 'unknown-origin-name' };
 }

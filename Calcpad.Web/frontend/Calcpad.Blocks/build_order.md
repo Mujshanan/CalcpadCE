@@ -80,6 +80,8 @@ Complete in this order:
 
 ## 5. Phase 1 — Public integration and host surface
 
+**Implementation status:** files added on `feature/calcpad-blocks-foundation`; Gate 1 remains pending typecheck/build verification.
+
 No Vue components or UI composables in this phase.
 
 | Order | File | Depends on | Work |
@@ -117,6 +119,8 @@ Re-export the public host types. Avoid exporting host implementation details.
 **Gate 1:** imports from the integration barrel and host barrel compile without consumers reaching into implementation files. No UI file imports `highlighter-contract.ts` directly.
 
 ## 6. Phase 2 — UI composables
+
+**Implementation status:** all seven composables and focused tests have been added; Gate 2 remains pending test/typecheck/build verification.
 
 No components are written in this phase. Implement and test state ownership first.
 

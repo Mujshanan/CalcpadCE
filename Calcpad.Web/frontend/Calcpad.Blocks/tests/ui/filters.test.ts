@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { useConstructFilters } from '../../src/ui/composables/useConstructFilters';
 import { createTestProjection } from '../helpers/projection';
 
 test('combines kind, origin, mapping, and query filters conjunctively', () => {
-    const filters = useConstructFilters(ref(createTestProjection().constructs));
+    const filters = useConstructFilters(computed(() => createTestProjection().constructs));
     assert.equal(filters.filteredConstructs.value.length, 2);
     filters.kind.value = 'VariableDefinition';
     filters.origin.value = 'Local';

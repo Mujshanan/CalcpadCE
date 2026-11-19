@@ -57,6 +57,11 @@ namespace Calcpad.Tests.Highlighter
                     JsonNode.Parse(JsonSerializer.Serialize(System.Enum.GetNames(typeof(SourceOrigin))))),
                 "SourceOrigin names/order changed; update the shared fixture and TypeScript mapping deliberately.");
 
+            // Enum metadata is part of the shared contract fixture, not the serialized
+            // StructuralOutput payload itself.
+            expectedFixture.AsObject().Remove("structuralConstructKindNames");
+            expectedFixture.AsObject().Remove("sourceOriginNames");
+
             Assert.True(
                 JsonNode.DeepEquals(JsonNode.Parse(expectedJson), JsonNode.Parse(actualJson)),
                 $"C# StructuralOutput JSON did not match the shared TypeScript fixture. Actual: {actualJson}");

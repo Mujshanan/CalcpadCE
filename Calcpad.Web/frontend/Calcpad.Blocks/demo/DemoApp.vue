@@ -42,6 +42,9 @@ const sourceFileTitle = computed(() =>
 const activeServerPath = computed(() =>
     activeFile.value === 'root' ? serverSourceFilePath.value : '',
 );
+const canNavigateTokens = computed(() =>
+    !(activeFile.value === 'root' && hasDependency.value && Boolean(serverSourceFilePath.value.trim())),
+);
 const sourceLines = computed(() => sourceText.value.split(/\r?\n/));
 
 function onExampleChange(event: Event): void {
@@ -97,7 +100,7 @@ function selectToken(index: number): void {
 
 function openToken(index: number): void {
     const token = tokens.value[index];
-    if (!token) return;
+    if (!token || !canNavigateTokens.value) return;
     selectedTokenIndex.value = index;
     editorRef.value?.revealRange(token.line, token.column, token.length);
 }
@@ -250,7 +253,13 @@ function onHighlightStatus(message: string, ok: boolean): void {
                             <span class="token-location">{{ tokenLocation(token) }}</span>
                         </button>
                     </div>
-                    <p class="token-hint">Single-click selects a token; double-click reveals its exact source range in Monaco.</p>
+                    <p class="token-hint" v-if="canNavigateTokens">
+                        Single-click selects a token; double-click reveals its exact source range in Monaco.
+                    </p>
+                    <p class="token-hint" v-else>
+                        Navigation is disabled for this include-expanded result: the current API token
+                        payload does not identify which source file each token belongs to.
+                    </p>
                 </aside>
             </div>
         </section>

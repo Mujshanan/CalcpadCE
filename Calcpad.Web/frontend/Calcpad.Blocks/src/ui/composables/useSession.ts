@@ -1,14 +1,17 @@
-import { computed, readonly, shallowRef } from 'vue';
+import { computed, isRef, type Ref } from 'vue';
 import type {
     BlocksHighlighterProjection,
     BoundHighlighterConstruct,
     ProjectionDiagnostic,
 } from '../../integrations/calcpad';
- 
-/** Read-only access to one immutable adapter projection. */
-export function useSession(initialSession: BlocksHighlighterProjection) {
-    const sessionState = shallowRef(initialSession);
-    const session = readonly(sessionState);
+
+export type SessionInput =
+    | BlocksHighlighterProjection
+    | Readonly<Ref<BlocksHighlighterProjection>>;
+
+/** Read the current projection without taking ownership of host/session state. */
+export function useSession(source: SessionInput) {
+    const session = computed(() => isRef(source) ? source.value : source);
     const constructs = computed(() => session.value.constructs);
     const diagnostics = computed(() => session.value.diagnostics);
     const revisionManifest = computed(() => session.value.sourceManifest);

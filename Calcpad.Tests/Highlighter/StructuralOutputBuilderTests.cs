@@ -73,6 +73,10 @@ namespace Calcpad.Tests.Highlighter
                 Assert.Contains(includePath, staged.Stage2.IncludedFileHashes.Keys);
 
                 var output = new StructuralOutputBuilder().Build(root, rootPath, staged, buffers);
+                Assert.Contains(output.Constructs, c =>
+                    c.Kind == StructuralConstructKind.IncludeDirective &&
+                    c.Range?.StartLine == 0 && c.Origin == SourceOrigin.Local);
+
                 var construct = Assert.Single(output.Constructs.Where(c =>
                     c.Kind == StructuralConstructKind.VariableDefinition &&
                     c.Name == "includedValue"));

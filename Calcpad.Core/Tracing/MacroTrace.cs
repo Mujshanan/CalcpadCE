@@ -97,7 +97,7 @@ namespace Calcpad.Core
     /// <param name="Name">The path as written, with path tokens expanded.</param>
     public readonly record struct MacroTraceInclude(string Path, string Name, int RootLine)
     {
-        /// <summary>Source file containing the directive; null when it belongs to the root input.</summary>
+        /// <summary>The parser source path containing the directive; this is the root path for root directives and an included path for nested directives.</summary>
         public string SourceFile { get; init; }
     }
 

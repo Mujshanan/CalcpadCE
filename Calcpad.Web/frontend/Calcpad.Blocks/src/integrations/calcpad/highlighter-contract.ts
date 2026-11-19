@@ -316,7 +316,6 @@ export interface BoundHighlighterConstruct {
     readonly sourceLocator?: string;
     /** Highlighter does not currently expose a reliable semantic span role. */
     readonly spanRole: HighlighterSpanRole;
-    readonly mapping: ConstructMappingStatus;
     readonly mappingStatus: ConstructMappingStatus;
     /** Exact source-slice comparison; no trimming or normalization is applied. */
     readonly contentVerification: ContentVerificationStatus;

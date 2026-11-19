@@ -44,6 +44,10 @@ const mappingOptions = computed(() =>
 );
 const visibleCount = ref(200);
 const sourcePane = ref<HTMLElement | null>(null);
+const sourceScrollTop = ref(0);
+const sourceViewportHeight = ref(480);
+const sourceLineHeight = 19.2;
+const sourceOverscan = 30;
 
 const filteredConstructs = computed(() => {
     const query = searchQuery.value.trim().toLocaleLowerCase();
@@ -117,6 +121,37 @@ const selectedSource = computed(() => {
 
 const sourceLines = computed(() => selectedSource.value.text.split(/\r\n|\r|\n/));
 
+const sourceWindowStart = computed(() =>
+    Math.max(0, Math.floor(sourceScrollTop.value / sourceLineHeight) - sourceOverscan),
+);
+const sourceWindowEnd = computed(() =>
+    Math.min(
+        sourceLines.value.length,
+        Math.ceil((sourceScrollTop.value + sourceViewportHeight.value) / sourceLineHeight)
+            + sourceOverscan,
+    ),
+);
+const visibleSourceLineIndexes = computed(() =>
+    Array.from(
+        { length: Math.max(0, sourceWindowEnd.value - sourceWindowStart.value) },
+        (_, index) => sourceWindowStart.value + index,
+    ),
+);
+const renderedSourceLines = computed(() =>
+    visibleSourceLineIndexes.value.map((lineIndex) => ({
+        lineIndex,
+        ...lineSegments(lineIndex),
+    })),
+);
+
+function updateSourceViewport(): void {
+    const pane = sourcePane.value;
+    if (!pane) return;
+    sourceScrollTop.value = pane.scrollTop;
+    sourceViewportHeight.value = pane.clientHeight || 480;
+}
+
+
 function freshnessOf(item: BoundHighlighterConstruct): 'current' | 'stale' | 'unknown' {
     if (!item.source) return 'unknown';
     const knownRevision = props.currentSourceRevisions?.[item.source.fileId]
@@ -154,8 +189,13 @@ watch(selectedConstruct, async (item) => {
     const reference = item?.source;
     if (!reference || selectedSource.value.fileId !== reference.fileId) return;
     await nextTick();
-    sourcePane.value?.querySelector<HTMLElement>(`[data-source-line="${reference.range.startLine}"]`)
-        ?.scrollIntoView({ block: 'center' });
+    const pane = sourcePane.value;
+    if (!pane) return;
+    pane.scrollTop = Math.max(
+        0,
+        reference.range.startLine * sourceLineHeight - pane.clientHeight / 2,
+    );
+    updateSourceViewport();
 });
 
 function selectConstruct(item: BoundHighlighterConstruct): void {
@@ -222,12 +262,24 @@ function openSource(item: BoundHighlighterConstruct): void {
                     This construct belongs to another source file. Supply that file in
                     <code>sourceBuffers</code> to preview and highlight its range.
                 </p>
-                <pre v-else ref="sourcePane" tabindex="0" aria-label="Read-only source preview"><code><span
-                    v-for="(line, lineIndex) in sourceLines"
-                    :key="lineIndex"
-                    :data-source-line="lineIndex"
+                <pre
+                    v-else
+                    ref="sourcePane"
+                    tabindex="0"
+                    aria-label="Read-only source preview"
+                    @scroll="updateSourceViewport"
+                ><code><span
+                    class="calcpad-blocks__source-spacer"
+                    :style="{ height: `${sourceWindowStart * sourceLineHeight}px` }"
+                ></span><span
+                    v-for="line in renderedSourceLines"
+                    :key="line.lineIndex"
+                    :data-source-line="line.lineIndex"
                     class="calcpad-blocks__source-line"
-                ><span>{{ lineSegments(lineIndex).before }}</span><mark v-if="lineSegments(lineIndex).selected">{{ lineSegments(lineIndex).selected }}</mark><span>{{ lineSegments(lineIndex).after }}</span>{{ lineIndex < sourceLines.length - 1 ? '\n' : '' }}</span></code></pre>
+                ><span>{{ line.before }}</span><mark v-if="line.selected">{{ line.selected }}</mark><span>{{ line.after }}</span></span><span
+                    class="calcpad-blocks__source-spacer"
+                    :style="{ height: `${Math.max(0, sourceLines.length - sourceWindowEnd) * sourceLineHeight}px` }"
+                ></span></code></pre>
             </section>
 
             <aside class="calcpad-blocks__constructs" aria-label="Recognized constructs">
@@ -464,7 +516,12 @@ function openSource(item: BoundHighlighterConstruct): void {
 .calcpad-blocks__source pre:focus-visible {
     outline: 2px solid var(--calcpad-blocks-accent, #3977c3);
 }
-.calcpad-blocks__source-line { display: block; min-height: 1.6em; }
+.calcpad-blocks__source-line {
+    display: block;
+    height: 19.2px;
+    line-height: 19.2px;
+}
+.calcpad-blocks__source-spacer { display: block; width: 1px; }
 .calcpad-blocks__source-line mark {
     color: inherit;
     background: var(--calcpad-blocks-selected, #dceaff);
@@ -531,6 +588,8 @@ function openSource(item: BoundHighlighterConstruct): void {
     outline-offset: 2px;
 }
 .calcpad-blocks__construct {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 92px;
     display: flex;
     flex-direction: column;
     align-items: stretch;

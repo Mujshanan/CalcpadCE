@@ -108,7 +108,10 @@ namespace Calcpad.Highlighter.ContentResolution
                         ? unit.LineNumber
                         : stage3.SourceMap.GetValueOrDefault(sourceEntry.Key, sourceEntry.Key);
                     source = null;
-                    if (!string.IsNullOrEmpty(file) && sourceBuffers is not null)
+                    if (!string.IsNullOrEmpty(file) &&
+                        staged.Stage2.IncludedFileSources.TryGetValue(file, out var resolvedSource))
+                        source = resolvedSource;
+                    else if (!string.IsNullOrEmpty(file) && sourceBuffers is not null)
                         sourceBuffers.TryGetSource(file, out source);
                 }
 

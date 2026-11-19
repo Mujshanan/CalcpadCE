@@ -98,7 +98,7 @@ test('maps Highlighter locators to stable host identities, not path-shaped IDs',
         })],
     }, snapshots);
 
-    assert.equal(result.constructs[0].mapping, 'verified');
+    assert.equal(result.constructs[0].mappingStatus, 'mapped');
     assert.equal(result.constructs[0].source?.fileId, 'host:library');
     assert.equal(result.constructs[0].source?.range.file, 'host:library');
     assert.equal(result.constructs[0].source?.revision, 'lib-r7');
@@ -201,7 +201,7 @@ test('reports identityUnavailable instead of treating an include path as a host 
         })],
     }, session());
 
-    assert.equal(result.constructs[0].mapping, 'identityUnavailable');
+    assert.equal(result.constructs[0].mappingStatus, 'identityUnavailable');
     assert.equal(result.constructs[0].source, undefined);
     assert.equal(result.constructs[0].editable, false);
     assert.equal(result.diagnostics[0].code, 'source-identity-unavailable');
@@ -222,7 +222,7 @@ test('reports bufferUnavailable when a stable host identity has no captured snap
         })],
     }, session());
 
-    assert.equal(result.constructs[0].mapping, 'bufferUnavailable');
+    assert.equal(result.constructs[0].mappingStatus, 'bufferUnavailable');
     assert.equal(result.constructs[0].source, undefined);
     assert.equal(result.diagnostics[0].code, 'source-buffer-unavailable');
 });
@@ -255,7 +255,7 @@ test('rejects a snapshot whose identity does not match the resolved host identit
         })],
     }, snapshots);
 
-    assert.equal(result.constructs[0].mapping, 'identityMismatch');
+    assert.equal(result.constructs[0].mappingStatus, 'identityMismatch');
     assert.equal(result.diagnostics[0].code, 'source-identity-mismatch');
 });
 
@@ -272,7 +272,7 @@ test('rejects invalid ranges without manufacturing source references', () => {
         })],
     }, session());
 
-    assert.equal(result.constructs[0].mapping, 'invalidRange');
+    assert.equal(result.constructs[0].mappingStatus, 'invalidRange');
     assert.equal(result.constructs[0].source, undefined);
     assert.equal(result.constructs[0].editable, false);
     assert.equal(result.diagnostics[0].code, 'source-range-invalid');
@@ -288,9 +288,28 @@ test('preserves constructs without ranges as explicitly unmapped', () => {
         })],
     }, session());
 
-    assert.equal(result.constructs[0].mapping, 'unmapped');
+    assert.equal(result.constructs[0].mappingStatus, 'unmapped');
     assert.equal(result.constructs[0].source, undefined);
     assert.equal(result.diagnostics[0].code, 'range-unavailable');
+});
+
+test('keeps a valid range mapped but marks mismatched construct text non-editable', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({ text: 'different text' })],
+    }, session());
+
+    assert.equal(result.constructs[0].mappingStatus, 'mapped');
+    assert.equal(result.constructs[0].contentVerification, 'mismatched');
+    assert.equal(result.constructs[0].editable, false);
+    assert.equal(result.diagnostics[0].code, 'source-content-mismatch');
+});
+
+test('reports exact content matches without applying normalization', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({ text: 'x' })],
+    }, session());
+
+    assert.equal(result.constructs[0].contentVerification, 'matched');
 });
 
 test('keeps generated constructs read-only even when their source range maps', () => {
@@ -302,8 +321,9 @@ test('keeps generated constructs read-only even when their source range maps', (
         })],
     }, session());
 
-    assert.equal(result.constructs[0].mapping, 'verified');
+    assert.equal(result.constructs[0].mappingStatus, 'mapped');
     assert.equal(result.constructs[0].editable, false);
+    assert.equal(result.constructs[0].contentVerification, 'notApplicable');
 });
 
 test('preserves unknown future kinds and origins without inventing semantics', () => {
@@ -393,10 +413,10 @@ test('accepts the actual C# System.Text.Json web-default numeric-enum payload fi
     ]);
     assert.equal(result.constructs[0].rawKind, 0);
     assert.equal(result.constructs[0].rawOrigin, 0);
-    assert.equal(result.constructs[0].mapping, 'verified');
+    assert.equal(result.constructs[0].mappingStatus, 'mapped');
     assert.equal(result.constructs[0].source?.fileId, 'host:fixture');
     assert.equal(result.constructs[0].editable, true);
-    assert.equal(result.constructs[1].mapping, 'unmapped');
+    assert.equal(result.constructs[1].mappingStatus, 'unmapped');
     assert.equal(result.constructs.length, 16);
 });
 

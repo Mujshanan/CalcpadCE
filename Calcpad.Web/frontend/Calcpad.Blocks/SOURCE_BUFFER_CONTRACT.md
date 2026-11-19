@@ -47,9 +47,9 @@ The adapter sets `spanRole` to `unknown` for every current construct. It must no
 
 A Highlighter `SourceRange.File` is a Highlighter-side file locator. It is not assumed to be a stable host file identity.
 
-The host supplies a `HighlighterSourceIdentityResolver` that maps each Highlighter file locator to a stable `SourceFileId`, and optionally retains the canonical locator. The root Highlighter locator is explicitly pinned to the supplied root snapshot.
+The TypeScript contract models `HighlighterFileLocator` and `HighlighterSourceRange` separately from host-owned `SourceFileId` and `SourceRange`. The host supplies a `HighlighterSourceIdentityResolver` that maps each Highlighter file locator to a stable `SourceFileId`, and optionally retains the canonical locator. The root Highlighter locator is explicitly pinned to the supplied root snapshot.
 
-The adapter must not fall back to using an unmapped include path as a host file ID. If identity resolution fails, the construct is `identityUnavailable`, has no source reference, and is not editable.
+The adapter must not fall back to using an unmapped include path as a host file ID. If identity resolution fails, the construct is `identityUnavailable`, has no source reference, and is not editable. The earlier `createHighlighterSourceBufferProvider` helper is deprecated because it assumes locator and host ID are identical; new integrations use `createHighlighterSourceSnapshotSession`.
 
 ## 4. Projection snapshot session and manifest
 

@@ -1,26 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import type { BoundHighlighterConstruct } from '../integrations/calcpad/highlighter-contract';
-import type { SourceBufferSnapshot, SourceReference } from '../core/source/contracts';
+import type { CalcpadBlocksWorkbenchEmits, CalcpadBlocksWorkbenchProps } from './types';
 
 const props = withDefaults(
-    defineProps<{
-        documentLabel?: string;
-        revision: string;
-        sourceText: string;
-        sourceFileId?: string;
-        currentSourceRevisions?: Readonly<Record<string, string>>;
-        sourceBuffers?: readonly SourceBufferSnapshot[];
-        constructs: readonly BoundHighlighterConstruct[];
-        selectedIndex?: number | null;
-    }>(),
+    defineProps<CalcpadBlocksWorkbenchProps>(),
     { documentLabel: 'Untitled worksheet', selectedIndex: null },
 );
 
-const emit = defineEmits<{
-    select: [projectionIndex: number];
-    openSource: [reference: SourceReference];
-}>();
+const emit = defineEmits<CalcpadBlocksWorkbenchEmits>();
 
 const searchQuery = ref('');
 const kindFilter = ref('');

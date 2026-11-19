@@ -35,15 +35,15 @@ namespace Calcpad.Highlighter.ContentResolution
             foreach (var assignment in stage3.VariableReassignments)
                 reassignments.Add((assignment.Name, assignment.Line, assignment.Column));
 
-            var functionDefinitions = new HashSet<(string Name, int Line, int Column, string File)>();
+            var functionDefinitions = new HashSet<(string Name, int Line, int Column, string SourceFile)>();
             foreach (var pair in stage3.FunctionIndex)
             {
                 foreach (var location in pair.Value)
                 {
                     if (!location.IsAssignment)
                         continue;
-                    var file = location.Source == "include" ? location.SourceFile : rootSourceId;
-                    functionDefinitions.Add((pair.Key, location.Line, location.Column, file ?? string.Empty));
+                    var sourceFile = location.Source == "include" ? location.SourceFile : string.Empty;
+                    functionDefinitions.Add((pair.Key, location.Line, location.Column, sourceFile ?? string.Empty));
                 }
             }
 
@@ -131,7 +131,7 @@ namespace Calcpad.Highlighter.ContentResolution
             Token token,
             HashSet<(string Name, int Line, int Column)> assignments,
             HashSet<(string Name, int Line, int Column)> reassignments,
-            HashSet<(string Name, int Line, int Column, string File)> functionDefinitions,
+            HashSet<(string Name, int Line, int Column, string SourceFile)> functionDefinitions,
             StagedResolvedContent staged,
             string rootSourceId,
             out StructuralConstructKind kind,
@@ -167,7 +167,7 @@ namespace Calcpad.Highlighter.ContentResolution
                 case TokenType.Function:
                     if (TryMapStage3Range(staged, token.Line, token.Column, token.Length,
                         rootSourceId, null, null, out var range, out _, out _) &&
-                        functionDefinitions.Contains((token.Text, range.StartLine, range.StartColumn, range.File)))
+                        functionDefinitions.Contains((token.Text, range.StartLine, range.StartColumn, GetStage3SourceFile(staged, token.Line))))
                         kind = StructuralConstructKind.FunctionDefinition;
                     else
                         kind = StructuralConstructKind.FunctionCall;

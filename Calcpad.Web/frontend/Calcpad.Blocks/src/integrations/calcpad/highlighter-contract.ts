@@ -143,7 +143,7 @@ export function createHighlighterSourceSnapshotSession(
     }>();
 
     resolutions.set(rootHighlighterFile, {
-        identity: { fileId: root.fileId },
+        identity: { fileId: root.fileId, locator: rootHighlighterFile },
         snapshot: root,
         status: 'captured',
     });
@@ -291,7 +291,7 @@ export function adaptHighlighterOutput(
 ): BlocksHighlighterContract {
     const diagnostics: HighlighterContractDiagnostic[] = [];
     const constructs = output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
-        const rawRange = construct.range;
+        const rawRange = construct.range ? Object.freeze({ ...construct.range }) : null;
         const rawKind = construct.kind;
         const rawOrigin = construct.origin;
         const kind = normalizeKind(rawKind);
@@ -365,16 +365,16 @@ export function adaptHighlighterOutput(
             (entry) => entry.highlighterFile === rawRange.file,
         );
         const fileId = identity?.fileId ?? snapshot.fileId;
-        const normalizedRange: SourceRange = {
+        const normalizedRange: SourceRange = Object.freeze({
             ...rawRange,
             file: fileId,
-        };
-        const source: SourceReference = {
+        });
+        const source: SourceReference = Object.freeze({
             fileId,
             revision: snapshot.revision,
             range: normalizedRange,
             origin,
-        };
+        });
 
         return {
             ...common,
@@ -390,8 +390,8 @@ export function adaptHighlighterOutput(
         contractVersion: BLOCKS_HIGHLIGHTER_CONTRACT_VERSION,
         capabilities: CURRENT_HIGHLIGHTER_CAPABILITIES,
         sourceManifest: snapshots.getManifest(),
-        constructs: Object.freeze(constructs),
-        diagnostics: Object.freeze(diagnostics),
+        constructs: Object.freeze(constructs.map((item) => Object.freeze(item))),
+        diagnostics: Object.freeze(diagnostics.map((item) => Object.freeze(item))),
     });
 }
 

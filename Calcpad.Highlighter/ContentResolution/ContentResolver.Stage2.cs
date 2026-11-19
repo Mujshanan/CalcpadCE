@@ -30,6 +30,7 @@ namespace Calcpad.Highlighter.ContentResolution
             var includes = new Dictionary<string, Stage1Result>(PathComparer);
             var includedFileHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var suppliedBuffers = new Dictionary<string, string>(PathComparer);
+            var includedFileSources = new Dictionary<string, string>(PathComparer);
             bool TryGetSuppliedBuffer(string path, out string raw)
             {
                 if (suppliedBuffers.TryGetValue(path, out raw))
@@ -65,6 +66,10 @@ namespace Calcpad.Highlighter.ContentResolution
                             return string.Empty;
                         }
                     }
+                    // Preserve the exact source used for this resolution, whether it came from
+                    // an unsaved host buffer or disk. Structural projections must not reconstruct
+                    // original source text from preprocessed lines.
+                    includedFileSources[path] = raw;
                     includedFileHashes[path] = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
                     var included = ProcessStage1(SplitLines(MacroParser.FilterIncludedContent(raw, keepLineCount: true)));
                     includes[path] = included;
@@ -156,7 +161,7 @@ namespace Calcpad.Highlighter.ContentResolution
                 UserDefinedMacros = userDefinedMacros,
                 PathRoots = parser.PathRoots,
                 IncludedFileHashes = includedFileHashes,
-                IncludedFileSources = new Dictionary<string, string>(suppliedBuffers, PathComparer),
+                IncludedFileSources = includedFileSources,
                 MacroErrorLines = [.. trace.Errors.Where(e => e.SourceIndex >= 0).Select(e => e.SourceIndex)],
                 MacroErrors = [.. trace.Errors.Where(e => e.SourceIndex >= 0).Select(e => ToMacroError(trace, e))],
                 IsMacroParserComplete = trace.IsComplete

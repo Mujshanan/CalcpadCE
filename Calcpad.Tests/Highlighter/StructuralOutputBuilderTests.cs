@@ -94,6 +94,67 @@ namespace Calcpad.Tests.Highlighter
             }
         }
 
+
+        [Fact]
+        public void Build_UsesExactDiskSourceForIncludedConstructText()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), $"calcpad_disk_include_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(directory);
+            try
+            {
+                var rootPath = Path.Combine(directory, "main.cpd");
+                var includePath = Path.Combine(directory, "library.cpd");
+                const string root = "#include library.cpd";
+                const string included = "diskValue = 42";
+                File.WriteAllText(includePath, included);
+
+                var staged = new ContentResolver().GetStagedContent(root, rootPath);
+                var output = new StructuralOutputBuilder().Build(root, rootPath, staged);
+
+                var construct = Assert.Single(output.Constructs.Where(c =>
+                    c.Kind == StructuralConstructKind.VariableDefinition && c.Name == "diskValue"));
+                Assert.Equal(Path.GetFullPath(includePath), construct.Range?.File);
+                Assert.Equal("diskValue", construct.Text);
+                Assert.Equal(SourceOrigin.IncludedFile, construct.Origin);
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
+        [Fact]
+        public void GetStagedContent_PrefersCurrentHostBufferOverDiskInclude()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), $"calcpad_buffer_precedence_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(directory);
+            try
+            {
+                var rootPath = Path.Combine(directory, "main.cpd");
+                var includePath = Path.GetFullPath(Path.Combine(directory, "library.cpd"));
+                const string root = "#include library.cpd";
+                File.WriteAllText(includePath, "diskValue = 1");
+                var buffers = new InMemorySourceBuffers(new Dictionary<string, string>
+                {
+                    [includePath] = "bufferValue = 2"
+                });
+
+                var staged = new ContentResolver().GetStagedContent(root, rootPath, sourceBuffers: buffers);
+                var output = new StructuralOutputBuilder().Build(root, rootPath, staged, buffers);
+
+                Assert.Contains(output.Constructs, c =>
+                    c.Kind == StructuralConstructKind.VariableDefinition && c.Name == "bufferValue");
+                Assert.DoesNotContain(output.Constructs, c => c.Name == "diskValue");
+                var construct = Assert.Single(output.Constructs.Where(c => c.Name == "bufferValue"));
+                Assert.Equal("bufferValue", construct.Text);
+                Assert.Equal(Path.GetFullPath(includePath), construct.Range?.File);
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
         [Fact]
         public void Build_DoesNotInventMathematicalExpressionBoundaries()
         {

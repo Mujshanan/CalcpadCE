@@ -1,0 +1,26 @@
+{
+  "name": "@calcpad/blocks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Source-backed visual worksheet UI and contracts for Calcpad",
+  "files": ["dist"],
+  "main": "./dist/calcpad-blocks.js",
+  "module": "./dist/calcpad-blocks.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/calcpad-blocks.js" } },
+  "scripts": {
+    "build": "vue-tsc --noEmit && vite build",
+    "test": "tsx --test tests/core/source-range.test.ts tests/contracts/highlighter-contract.test.ts",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "peerDependencies": { "vue": "^3.5.0" },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "tsx": "^4.23.4",
+    "typescript": "^5.9.0",
+    "vite": "^8.1.3",
+    "vue": "^3.5.39",
+    "vue-tsc": "^3.3.13"
+  }
+}

@@ -9,12 +9,6 @@ import {
     type HighlighterStructuralOutput,
 } from '../../src/integrations/calcpad/highlighter-contract';
 
-const root = {
-    fileId: 'root-id',
-    revision: 'r1',
-    text: 'x = 1',
-    writable: true,
-} as const;
 
 function output(kind: string | number, origin: string | number): HighlighterStructuralOutput {
     return {

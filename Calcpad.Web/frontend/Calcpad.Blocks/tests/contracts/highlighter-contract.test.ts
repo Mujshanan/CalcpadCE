@@ -327,7 +327,11 @@ test('accepts the actual C# System.Text.Json web-default numeric-enum payload fi
         '../../../../../Calcpad.Tests/Highlighter/Fixtures/structural-output.web.json',
         import.meta.url,
     );
-    const payload = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as HighlighterStructuralOutput;
+    const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as HighlighterStructuralOutput & {
+        structuralConstructKindNames: readonly string[];
+        sourceOriginNames: readonly string[];
+    };
+    const payload = fixture;
     const snapshots = createHighlighterSourceSnapshotSession(
         {
             fileId: 'host:fixture',
@@ -342,6 +346,15 @@ test('accepts the actual C# System.Text.Json web-default numeric-enum payload fi
 
     const result = adaptHighlighterOutput(payload, snapshots);
 
+    assert.deepEqual(fixture.structuralConstructKindNames, [
+        'Comment', 'HtmlOrMarkdownContent', 'VariableDefinition', 'VariableReassignment',
+        'FunctionDefinition', 'FunctionCall', 'MacroDefinition', 'MacroCall',
+        'CustomUnitDefinition', 'ControlFlowDirective', 'Command', 'IncludeDirective',
+        'DataExchangeDirective', 'InputDirective', 'SettingsDirective', 'MathematicalExpression',
+    ]);
+    assert.deepEqual(fixture.sourceOriginNames, [
+        'Local', 'IncludedFile', 'MacroExpansion', 'Generated', 'Unknown',
+    ]);
     assert.deepEqual(result.constructs.map((item) => item.kind), [
         'Comment',
         'HtmlOrMarkdownContent',

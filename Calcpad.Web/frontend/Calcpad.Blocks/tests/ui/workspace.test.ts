@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { shallowRef } from 'vue';
+import { ref, shallowRef } from 'vue';
 import { useWorkspace } from '../../src/ui/composables/useWorkspace';
 import { createTestProjection } from '../helpers/projection';
 
@@ -56,4 +56,26 @@ test('reacts to host projection replacement without losing workspace state', () 
     assert.equal(workspace.selectedConstruct.value?.name, 'updated');
     assert.equal(workspace.collapse.isCollapsed(0), true);
     assert.equal(workspace.mode.value, 'blocks');
+});
+
+test('controlled workspace selection follows host state without changing the component API', () => {
+    const projection = createTestProjection();
+    const selectedIndex = ref<number | null>(1);
+    const requests: Array<number | null> = [];
+    const workspace = useWorkspace(projection, {
+        isSourceCurrent: () => true,
+        onNavigate: () => undefined,
+        onSelect: (index) => requests.push(index),
+    }, {
+        controlledSelectedIndex: () => selectedIndex.value,
+    });
+
+    assert.equal(workspace.selectedIndex.value, 1);
+    workspace.select(0);
+    assert.equal(requests.at(-1), 0);
+    assert.equal(workspace.selectedIndex.value, 1);
+
+    selectedIndex.value = 0;
+    assert.equal(workspace.selectedIndex.value, 0);
+    assert.equal(workspace.selectedConstruct.value?.projectionIndex, 0);
 });

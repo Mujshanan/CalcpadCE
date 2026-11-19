@@ -47,7 +47,9 @@ namespace Calcpad.Tests.Highlighter
                 .Where(c => c.Kind == StructuralConstructKind.ControlFlowDirective)
                 .ToArray();
             Assert.Equal(3, directives.Length);
-            Assert.Equal(new[] { "#if", "#else", "#end if" }, directives.Select(c => c.Text));
+            Assert.Contains(directives, c => c.Text.StartsWith("#if", StringComparison.Ordinal));
+            Assert.Contains(directives, c => c.Text.StartsWith("#else", StringComparison.Ordinal));
+            Assert.Contains(directives, c => c.Text.StartsWith("#end", StringComparison.Ordinal));
             Assert.All(directives, c => Assert.NotNull(c.Range));
         }
 

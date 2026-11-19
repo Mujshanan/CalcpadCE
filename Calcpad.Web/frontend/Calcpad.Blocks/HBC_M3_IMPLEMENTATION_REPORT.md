@@ -52,7 +52,8 @@ The tests cover:
 - invalid and missing source ranges;
 - generated-content read-only behavior;
 - unknown future kind/origin preservation;
-- conservative span-role and capability declarations.
+- conservative span-role and capability declarations;
+- paired C#/TypeScript compatibility coverage for the ASP.NET Core numeric-enum JSON payload (added during HBC-M3.1; see `HBC_M3_1_VALIDATION_REPORT.md`).
 
 Existing source-range tests and the package test script remain unchanged.
 
@@ -81,7 +82,7 @@ npm run typecheck
 npm run build
 ```
 
-The .NET Highlighter test suite was not run because Highlighter itself was not changed. A host integration test that serializes actual C# `StructuralOutput` and passes it through this TypeScript adapter remains a follow-up validation step.
+The .NET test suite and Blocks package checks have not yet been executed in this environment. HBC-M3.1 has since added a C# serialization test and a TypeScript consumer test that share the same JSON fixture; this validates the DTO wire shape without changing Highlighter or launching the HTTP server. See `HBC_M3_1_VALIDATION_REPORT.md` for scope and limitations.
 
 ## 7. Next step
 

@@ -1,5 +1,6 @@
 import {
     canEditSource,
+    type HighlighterIncludeSourceProvider,
     type SourceBufferSnapshot,
     type HighlighterFileLocator,
     type SourceFileId,
@@ -119,7 +120,7 @@ export interface ProjectionSourceManifestEntry {
  * once; the same immutable text/revision pair is used for Highlighter input,
  * construct binding, and the resulting manifest.
  */
-export interface HighlighterSourceSnapshotSession {
+export interface HighlighterSourceSnapshotSession extends HighlighterIncludeSourceProvider {
     tryGetSource(highlighterFile: HighlighterFileLocator): string | undefined;
     getSnapshotForHighlighterFile(highlighterFile: HighlighterFileLocator): SourceBufferSnapshot | undefined;
     getManifest(): readonly ProjectionSourceManifestEntry[];

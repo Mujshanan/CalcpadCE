@@ -17,7 +17,7 @@ The package contains:
 
 The adapter preserves the Highlighter's construct order and raw kind/origin values. It does not infer semantic span roles, statement/container boundaries, containment, complete source coverage, embedded-content subtypes, or macro provenance relationships.
 
-The current workbench shows original source unchanged beside the flat constructs returned by Highlighter. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships.
+The current workbench shows original source unchanged beside the flat constructs returned by Highlighter. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships. HBC-M3 compatibility test cases have been added, but `npm test`, `npm run typecheck`, and `npm run build` have not yet been executed for this branch.
 
 The UI is not yet wired into calcpad-web. BlockSuite integration remains a separate step after the source projection contract is complete; the BlockSuite document must remain an ephemeral rendering projection, never another persisted worksheet or undo history.
 

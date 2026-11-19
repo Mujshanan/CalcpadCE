@@ -31,9 +31,9 @@ function getLineBounds(source: string): LineBounds[] {
     let lineStart = 0;
     for (let index = 0; index < source.length; index++) {
         const character = source[index];
-        if (character !== '\\r' && character !== '\\n') continue;
+        if (character !== '\r' && character !== '\n') continue;
         lines.push({ start: lineStart, end: index });
-        if (character === '\\r' && source[index + 1] === '\\n') index++;
+        if (character === '\r' && source[index + 1] === '\n') index++;
         lineStart = index + 1;
     }
     lines.push({ start: lineStart, end: source.length });

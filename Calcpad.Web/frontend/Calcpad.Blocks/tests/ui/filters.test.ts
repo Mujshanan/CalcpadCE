@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ref } from 'vue';
 import { useConstructFilters } from '../../src/ui/composables/useConstructFilters';
 import { createTestProjection } from '../helpers/projection';
 
 test('combines kind, origin, mapping, and query filters conjunctively', () => {
-    const filters = useConstructFilters({ value: createTestProjection().constructs } as never);
+    const filters = useConstructFilters(ref(createTestProjection().constructs));
     assert.equal(filters.filteredConstructs.value.length, 2);
     filters.kind.value = 'VariableDefinition';
     filters.origin.value = 'Local';
@@ -17,7 +18,7 @@ test('combines kind, origin, mapping, and query filters conjunctively', () => {
 });
 
 test('empty filters preserve adapter order and clearFilters resets all inputs', () => {
-    const filters = useConstructFilters({ value: createTestProjection().constructs } as never);
+    const filters = useConstructFilters(ref(createTestProjection().constructs));
     assert.deepEqual(filters.filteredConstructs.value.map((item) => item.projectionIndex), [0, 1]);
     filters.query.value = 'x';
     filters.kind.value = 'VariableDefinition';

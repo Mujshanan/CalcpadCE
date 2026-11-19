@@ -143,6 +143,8 @@ export interface HighlighterSourceResolution {
     readonly identity?: HighlighterSourceIdentity;
     readonly snapshot?: SourceBufferSnapshot;
     readonly status: SourceManifestStatus;
+    /** Distinguishes a provider exception from a normal missing buffer. */
+    readonly failureReason?: 'snapshot-provider-failed';
 }
 
 export interface HighlighterSourceSnapshotSession extends HighlighterIncludeSourceProvider {
@@ -205,7 +207,20 @@ export function createHighlighterSourceSnapshotSession(
             return result;
         }
 
-        const candidate = hostSnapshots.getSnapshot(identity.fileId);
+        let candidate: SourceBufferSnapshot | undefined;
+        try {
+            candidate = hostSnapshots.getSnapshot(identity.fileId);
+        } catch {
+            const failed: HighlighterSourceResolution = Object.freeze({
+                identity,
+                status: 'bufferUnavailable' as const,
+                failureReason: 'snapshot-provider-failed' as const,
+            });
+            snapshotsByFileId.set(identity.fileId, failed);
+            resolutions.set(highlighterFile, failed);
+            return failed;
+        }
+
         if (!candidate) {
             const missing: HighlighterSourceResolution = Object.freeze({
                 identity,
@@ -317,7 +332,8 @@ export interface HighlighterContractDiagnostic {
         | 'source-buffer-unavailable'
         | 'source-identity-mismatch'
         | 'source-range-invalid'
-        | 'source-content-mismatch';
+        | 'source-content-mismatch'
+        | 'source-buffer-provider-failed';
     readonly projectionIndex: number;
     readonly sourceLocator?: string;
 }
@@ -379,11 +395,13 @@ export function adaptHighlighterOutput(
                     ? 'identityMismatch'
                     : 'bufferUnavailable';
             diagnostics.push({
-                code: mapping === 'identityUnavailable'
-                    ? 'source-identity-unavailable'
-                    : mapping === 'identityMismatch'
-                        ? 'source-identity-mismatch'
-                        : 'source-buffer-unavailable',
+                code: resolution.failureReason === 'snapshot-provider-failed'
+                    ? 'source-buffer-provider-failed'
+                    : mapping === 'identityUnavailable'
+                        ? 'source-identity-unavailable'
+                        : mapping === 'identityMismatch'
+                            ? 'source-identity-mismatch'
+                            : 'source-buffer-unavailable',
                 projectionIndex,
                 sourceLocator: rawRange.file,
             });

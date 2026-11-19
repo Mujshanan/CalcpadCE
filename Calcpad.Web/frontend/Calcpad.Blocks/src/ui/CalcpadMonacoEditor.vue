@@ -2,19 +2,15 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import * as monaco from 'monaco-editor';
+import {
+    CALCPAD_SEMANTIC_TOKEN_TYPES,
+    isCalcpadTokenInModel,
+    mapCalcpadTokenType,
+    type CalcpadHighlightResponse,
+    type CalcpadHighlightToken,
+} from '../integrations/calcpad/highlighter-tokens';
 
-interface HighlightToken {
-    readonly line: number;
-    readonly column: number;
-    readonly length: number;
-    readonly type: string;
-    readonly typeId: number;
-    readonly text?: string;
-}
-
-interface HighlightResponse {
-    readonly tokens: readonly HighlightToken[];
-}
+type HighlightToken = CalcpadHighlightToken;
 
 const props = withDefaults(defineProps<{
     modelValue: string;
@@ -32,48 +28,12 @@ const emit = defineEmits<{
 
 const host = ref<HTMLDivElement>();
 let editor: monaco.editor.IStandaloneCodeEditor | undefined;
-let semanticProvider: monaco.IDisposable | undefined;
-let languageRegistration: monaco.IDisposable | undefined;
-let contentSubscription: monaco.IDisposable | undefined;
+let semanticProvider: { dispose(): void } | undefined;
+let languageRegistration: { dispose(): void } | undefined;
+let contentSubscription: { dispose(): void } | undefined;
 let requestSequence = 0;
 
-const tokenTypes = [
-    'number', 'operator', 'variable', 'parameter', 'function', 'macro',
-    'unit', 'property', 'keyword', 'string', 'comment', 'tag',
-] as const;
-
-const tokenTypeMap: Record<string, typeof tokenTypes[number]> = {
-    Const: 'number',
-    Operator: 'operator',
-    Bracket: 'operator',
-    LineContinuation: 'operator',
-    Variable: 'variable',
-    LocalVariable: 'parameter',
-    Function: 'function',
-    Macro: 'macro',
-    MacroParameter: 'parameter',
-    Units: 'unit',
-    Setting: 'property',
-    Keyword: 'keyword',
-    ControlBlockKeyword: 'keyword',
-    EndKeyword: 'keyword',
-    Command: 'function',
-    Include: 'string',
-    FilePath: 'string',
-    DataExchangeKeyword: 'keyword',
-    Comment: 'comment',
-    HtmlComment: 'comment',
-    Tag: 'tag',
-    HtmlContent: 'string',
-    JavaScript: 'string',
-    Css: 'string',
-    Svg: 'string',
-    Input: 'number',
-    Format: 'unit',
-    SettingsJson: 'string',
-};
-
-const legend = new monaco.languages.SemanticTokensLegend([...tokenTypes], []);
+const legend = new monaco.languages.SemanticTokensLegend([...CALCPAD_SEMANTIC_TOKEN_TYPES], []);
 
 function installWorker(): void {
     const scope = globalThis as typeof globalThis & {
@@ -104,7 +64,7 @@ async function fetchTokens(content: string): Promise<readonly HighlightToken[]> 
     if (!response.ok) {
         throw new Error(`Highlighter returned HTTP ${response.status} ${response.statusText}`);
     }
-    const result = await response.json() as HighlightResponse;
+    const result = await response.json() as CalcpadHighlightResponse;
     if (!Array.isArray(result.tokens)) throw new Error('Highlighter response did not contain a tokens array.');
     return result.tokens;
 }
@@ -127,10 +87,31 @@ onMounted(() => {
     installWorker();
 
     languageRegistration = monaco.languages.register({ id: 'calcpad' });
+    monaco.editor.defineTheme('calcpad-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [],
+        colors: {},
+        semanticTokenColors: {
+            number: '#098658',
+            operator: '#5b6573',
+            variable: '#245ea8',
+            parameter: '#7a4e9b',
+            function: '#795e26',
+            macro: '#9a4d00',
+            unit: '#267f99',
+            property: '#795e26',
+            keyword: '#af00db',
+            string: '#a31515',
+            comment: '#008000',
+            tag: '#800000',
+        },
+    });
+
     editor = monaco.editor.create(host.value, {
         value: props.modelValue,
         language: 'calcpad',
-        theme: 'vs',
+        theme: 'calcpad-light',
         automaticLayout: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
@@ -157,8 +138,13 @@ onMounted(() => {
                 }
                 const builder = new monaco.languages.SemanticTokensBuilder(legend);
                 for (const token of tokens) {
-                    const tokenType = tokenTypeMap[token.type];
-                    if (!tokenType || token.length <= 0 || token.line < 0 || token.column < 0) continue;
+                    const tokenType = mapCalcpadTokenType(token.type);
+                    const validRange = isCalcpadTokenInModel(
+                        token,
+                        model.getLineCount(),
+                        (line) => model.getLineMaxColumn(line + 1) - 1,
+                    );
+                    if (!tokenType || !validRange) continue;
                     builder.push(token.line, token.column, token.length, tokenType, []);
                 }
                 return builder.build();
@@ -184,6 +170,15 @@ watch(() => props.modelValue, (value) => {
     editor.setValue(value);
 });
 watch(() => props.readOnly, (value) => editor?.updateOptions({ readOnly: value }));
+watch(
+    () => [props.apiBaseUrl, props.apiToken, props.sourceFilePath] as const,
+    () => {
+        const model = editor?.getModel();
+        if (!model) return;
+        monaco.editor.setModelLanguage(model, 'plaintext');
+        monaco.editor.setModelLanguage(model, 'calcpad');
+    },
+);
 
 onBeforeUnmount(() => {
     requestSequence++;

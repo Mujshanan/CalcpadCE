@@ -129,7 +129,7 @@ export function adaptHighlighterOutput(
     const bindings = new Map(context.sources.map((entry) => [entry.sourceLocator, entry]));
     const sourceManifest = context.sources.map(({ sourceLocator, fileId, snapshot }) => ({
         sourceLocator,
-        fileId: entry.fileId,
+        fileId,
         revision: snapshot?.revision,
         writable: snapshot?.writable ?? false,
         available: snapshot !== undefined,

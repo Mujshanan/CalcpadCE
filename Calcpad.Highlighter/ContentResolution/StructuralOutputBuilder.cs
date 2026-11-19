@@ -329,7 +329,7 @@ namespace Calcpad.Highlighter.ContentResolution
                 last = current;
             }
 
-            return FinishRange(first, last, length, macro, rootSource, sourceBuffers,
+            return FinishRange(staged, first, last, length, macro, rootSource, sourceBuffers,
                 out range, out text, out origin);
         }
 
@@ -356,12 +356,12 @@ namespace Calcpad.Highlighter.ContentResolution
                 last = current;
             }
 
-            return FinishRange(first, last, length, false, rootSource, sourceBuffers,
+            return FinishRange(staged, first, last, length, false, rootSource, sourceBuffers,
                 out range, out text, out origin);
         }
 
         private static bool FinishRange(
-            MappedPosition first, MappedPosition last, int length, bool macro,
+            StagedResolvedContent staged, MappedPosition first, MappedPosition last, int length, bool macro,
             string rootSource, ISourceBufferProvider sourceBuffers,
             out SourceRange range, out string text, out SourceOrigin origin)
         {
@@ -380,6 +380,8 @@ namespace Calcpad.Highlighter.ContentResolution
             string source = null;
             if (!first.IsIncluded)
                 source = rootSource;
+            else if (staged.Stage2.IncludedFileSources.TryGetValue(first.File, out var resolvedSource))
+                source = resolvedSource;
             else if (sourceBuffers is not null)
                 sourceBuffers.TryGetSource(first.File, out source);
 

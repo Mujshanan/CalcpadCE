@@ -1,0 +1,122 @@
+{
+  "constructs": [
+    {
+      "kind": 0,
+      "range": {
+        "file": "fixture://root",
+        "startLine": 0,
+        "startColumn": 0,
+        "endLine": 0,
+        "endColumn": 1
+      },
+      "text": "x",
+      "origin": 0,
+      "name": null
+    },
+    {
+      "kind": 1,
+      "range": null,
+      "text": null,
+      "origin": 1,
+      "name": null
+    },
+    {
+      "kind": 2,
+      "range": null,
+      "text": null,
+      "origin": 2,
+      "name": "x"
+    },
+    {
+      "kind": 3,
+      "range": null,
+      "text": null,
+      "origin": 3,
+      "name": null
+    },
+    {
+      "kind": 4,
+      "range": null,
+      "text": null,
+      "origin": 4,
+      "name": null
+    },
+    {
+      "kind": 5,
+      "range": null,
+      "text": null,
+      "origin": 0,
+      "name": null
+    },
+    {
+      "kind": 6,
+      "range": null,
+      "text": null,
+      "origin": 1,
+      "name": null
+    },
+    {
+      "kind": 7,
+      "range": null,
+      "text": null,
+      "origin": 2,
+      "name": null
+    },
+    {
+      "kind": 8,
+      "range": null,
+      "text": null,
+      "origin": 3,
+      "name": null
+    },
+    {
+      "kind": 9,
+      "range": null,
+      "text": null,
+      "origin": 4,
+      "name": null
+    },
+    {
+      "kind": 10,
+      "range": null,
+      "text": null,
+      "origin": 0,
+      "name": null
+    },
+    {
+      "kind": 11,
+      "range": null,
+      "text": null,
+      "origin": 1,
+      "name": null
+    },
+    {
+      "kind": 12,
+      "range": null,
+      "text": null,
+      "origin": 2,
+      "name": null
+    },
+    {
+      "kind": 13,
+      "range": null,
+      "text": null,
+      "origin": 3,
+      "name": null
+    },
+    {
+      "kind": 14,
+      "range": null,
+      "text": null,
+      "origin": 4,
+      "name": null
+    },
+    {
+      "kind": 15,
+      "range": null,
+      "text": null,
+      "origin": 0,
+      "name": null
+    }
+  ]
+}

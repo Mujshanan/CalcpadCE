@@ -10,6 +10,7 @@ This file covers building and packaging. What the editors *do* is documented for
 
 | Directory | Description |
 |-----------|-------------|
+| [Calcpad.Blocks/](Calcpad.Blocks/) | Source-backed worksheet workbench and visual block package (initial Vue UI and source contracts) |
 | [calcpad-frontend/](calcpad-frontend/) | Shared TypeScript library (API client, services, Vue components) |
 | [vscode-calcpad/](vscode-calcpad/) | VS Code extension with live preview and full language support |
 | [calcpad-web/](calcpad-web/) | Standalone web editor built with Monaco Editor + Vue |

@@ -142,13 +142,14 @@ namespace Calcpad.Highlighter.ContentResolution
             // resolved paths and root-document line numbers in the existing trace.
             foreach (var include in staged.Stage2.IncludeDirectives ?? new List<IncludeDirectiveInfo>())
             {
-                var rootLine = include.RootLine - 1;
+                var stage1Line = include.RootLine - 1;
+                var rootLine = staged.Stage1.SourceMap.GetValueOrDefault(stage1Line, stage1Line);
                 if (!TryGetLine(rootSource, rootLine, out var lineText))
                     continue;
 
                 var orderLine = staged.Stage2.IncludeMap
                     .Where(pair => pair.Value?.FilePath == include.Path &&
-                        staged.Stage2.SourceMap.GetValueOrDefault(pair.Key, -1) == rootLine)
+                        staged.Stage2.SourceMap.GetValueOrDefault(pair.Key, -1) == stage1Line)
                     .Select(pair => pair.Key)
                     .DefaultIfEmpty(rootLine)
                     .Min();

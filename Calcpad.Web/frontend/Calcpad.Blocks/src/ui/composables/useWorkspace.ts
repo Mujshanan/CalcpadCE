@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import type { BlocksHighlighterProjection } from '../../integrations/calcpad';
-import type { HostCallbacks } from '../../host';
+import type { HostCallbacks, SourceNavigationResult } from '../../host';
 import { useCollapseState } from './useCollapseState';
 import { useConstructFilters } from './useConstructFilters';
 import { useDiagnostics } from './useDiagnostics';
@@ -20,7 +20,8 @@ export function useWorkspace(
     const selection = useSelection(sessionState.constructs);
     const collapse = useCollapseState();
     const diagnostics = useDiagnostics(sessionState.session);
-    const navigation = useSourceNavigation(initialSession, hostCallbacks);
+    // Keep navigation bound to the same normalized session exposed by the workspace.
+    const navigation = useSourceNavigation(sessionState.session, hostCallbacks);
 
     const visibleConstructs = computed(() => filters.filteredConstructs.value);
     const selectedConstruct = selection.selectedConstruct;
@@ -36,9 +37,14 @@ export function useWorkspace(
         selection.select(projectionIndex);
         hostCallbacks.onSelect?.(selection.selectedIndex.value);
     }
-    function navigateSelected() {
+    function navigateSelected(): Promise<SourceNavigationResult> {
         const index = selection.selectedIndex.value;
-        if (index === null) return Promise.resolve({ status: 'refused', reason: 'noSelection' } as const);
+        if (index === null) {
+            return Promise.resolve({
+                status: 'refused',
+                reason: 'noSelection',
+            });
+        }
         return navigation.navigate(index);
     }
 

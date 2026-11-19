@@ -127,7 +127,7 @@ export function adaptHighlighterOutput(
     context: HighlighterProjectionContext,
 ): BlocksHighlighterProjection {
     const bindings = new Map(context.sources.map((entry) => [entry.sourceLocator, entry]));
-    const sourceManifest = context.sources.map(({ sourceLocator, snapshot }) => ({
+    const sourceManifest = context.sources.map(({ sourceLocator, fileId, snapshot }) => ({
         sourceLocator,
         fileId: entry.fileId,
         revision: snapshot?.revision,
@@ -169,7 +169,11 @@ export function adaptHighlighterOutput(
                 message: `The host snapshot for "${range.file}" was not available for this projection.` });
             return { ...base, mapping: 'bufferUnavailable' };
         }
-        if (snapshot.fileId !== binding.fileId) return { ...base, mapping: 'sourceIdentityUnresolved' };
+        if (snapshot.fileId !== binding.fileId) {
+            diagnostics.push({ code: 'sourceIdentityUnresolved', projectionIndex,
+                message: `Host snapshot identity "${snapshot.fileId}" does not match registered identity "${binding.fileId}".` });
+            return { ...base, mapping: 'sourceIdentityUnresolved' };
+        }
         const hostRange: SourceRange = { ...range, file: snapshot.fileId };
         if (!sourceRangeToOffsets(snapshot.text, hostRange)) {
             diagnostics.push({ code: 'invalidRange', projectionIndex,

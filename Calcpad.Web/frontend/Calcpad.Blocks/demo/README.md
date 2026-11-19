@@ -1,5 +1,14 @@
 # Calcpad Blocks standalone integration demo
 
+## Available source examples
+
+- Parametric SVG Generation (with `svg_drawing.cpd` include)
+- Eurocode EN 1993-1-1 steel I-section properties
+- Matrix initialization and indexing
+- Matrix math functions
+
+The `.cpd` fixtures are verbatim upstream files; see `examples/README.md` for blob hashes and `examples/LICENSE` for the upstream MIT license.
+
 ## Start the frontend
 
 ```powershell

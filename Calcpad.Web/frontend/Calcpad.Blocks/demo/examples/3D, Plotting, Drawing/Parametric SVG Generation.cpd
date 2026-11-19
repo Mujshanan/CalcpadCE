@@ -58,5 +58,5 @@ i = 0
 	i = i + 1
 #loop
 #post
-'</svg>'
+'</svg>
 #equ

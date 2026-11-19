@@ -46,8 +46,6 @@ const visibleCount = ref(200);
 const sourcePane = ref<HTMLElement | null>(null);
 
 const filteredConstructs = computed(() => {
-
-const filteredConstructs = computed(() => {
     const query = searchQuery.value.trim().toLocaleLowerCase();
     return props.constructs.filter((item) => {
         if (kindFilter.value && item.kind !== kindFilter.value) return false;
@@ -109,15 +107,6 @@ const selectedSource = computed(() => {
         };
     }
 
-    if (!props.sourceFileId) {
-        return {
-            fileId: undefined,
-            revision: undefined,
-            text: props.sourceText,
-            available: true,
-        };
-    }
-
     return {
         fileId: reference.fileId,
         revision: undefined,
@@ -131,7 +120,9 @@ const sourceLines = computed(() => selectedSource.value.text.split(/\\r\\n|\\r|\
 function freshnessOf(item: BoundHighlighterConstruct): 'current' | 'stale' | 'unknown' {
     if (!item.source) return 'unknown';
     const knownRevision = props.currentSourceRevisions?.[item.source.fileId]
-        ?? (item.source.fileId === props.sourceFileId ? props.revision : undefined);
+        ?? (item.source.fileId === props.sourceFileId
+            ? props.revision
+            : props.sourceBuffers?.find((buffer) => buffer.fileId === item.source?.fileId)?.revision);
     if (knownRevision === undefined) return 'unknown';
     return knownRevision === item.source.revision ? 'current' : 'stale';
 }

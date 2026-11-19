@@ -129,7 +129,14 @@ export interface ProjectionSourceManifestEntry {
  * once; the same immutable text/revision pair is used for Highlighter input,
  * construct binding, and the resulting manifest.
  */
+export interface HighlighterSourceResolution {
+    readonly identity?: HighlighterSourceIdentity;
+    readonly snapshot?: SourceBufferSnapshot;
+    readonly status: SourceManifestStatus;
+}
+
 export interface HighlighterSourceSnapshotSession extends HighlighterIncludeSourceProvider {
+    resolveHighlighterFile(highlighterFile: HighlighterFileLocator): HighlighterSourceResolution;
     tryGetSource(highlighterFile: HighlighterFileLocator): string | undefined;
     getSnapshotForHighlighterFile(highlighterFile: HighlighterFileLocator): SourceBufferSnapshot | undefined;
     getManifest(): readonly ProjectionSourceManifestEntry[];
@@ -147,25 +154,21 @@ export function createHighlighterSourceSnapshotSession(
     resolveIdentity: HighlighterSourceIdentityResolver,
 ): HighlighterSourceSnapshotSession {
     const root = freezeSnapshot(rootSnapshot);
-    const resolutions = new Map<string, {
-        readonly identity?: HighlighterSourceIdentity;
-        readonly snapshot?: SourceBufferSnapshot;
-        readonly status: SourceManifestStatus;
-    }>();
+    const resolutions = new Map<string, HighlighterSourceResolution>();
 
-    resolutions.set(rootHighlighterFile, {
-        identity: { fileId: root.fileId, locator: rootHighlighterFile },
+    resolutions.set(rootHighlighterFile, Object.freeze({
+        identity: Object.freeze({ fileId: root.fileId, locator: rootHighlighterFile }),
         snapshot: root,
         status: 'captured',
-    });
+    }));
 
-    function resolve(highlighterFile: HighlighterFileLocator) {
+    function resolve(highlighterFile: HighlighterFileLocator): HighlighterSourceResolution {
         const cached = resolutions.get(highlighterFile);
         if (cached) return cached;
 
         const resolvedIdentity = resolveIdentity(highlighterFile);
         if (!resolvedIdentity || !resolvedIdentity.fileId) {
-            const missing = { status: 'identityUnavailable' as const };
+            const missing: HighlighterSourceResolution = Object.freeze({ status: 'identityUnavailable' });
             resolutions.set(highlighterFile, missing);
             return missing;
         }
@@ -179,34 +182,37 @@ export function createHighlighterSourceSnapshotSession(
             : hostSnapshots.getSnapshot(identity.fileId);
 
         if (!candidate) {
-            const missing = {
+            const missing: HighlighterSourceResolution = Object.freeze({
                 identity,
-                status: 'bufferUnavailable' as const,
-            };
+                status: 'bufferUnavailable',
+            });
             resolutions.set(highlighterFile, missing);
             return missing;
         }
 
         if (candidate.fileId !== identity.fileId) {
-            const mismatch = {
+            const mismatch: HighlighterSourceResolution = Object.freeze({
                 identity,
-                status: 'identityMismatch' as const,
-            };
+                status: 'identityMismatch',
+            });
             resolutions.set(highlighterFile, mismatch);
             return mismatch;
         }
 
         const captured = freezeSnapshot(candidate);
-        const result = {
+        const result: HighlighterSourceResolution = Object.freeze({
             identity,
             snapshot: captured,
-            status: 'captured' as const,
-        };
+            status: 'captured',
+        });
         resolutions.set(highlighterFile, result);
         return result;
     }
 
     return {
+        resolveHighlighterFile(highlighterFile) {
+            return resolve(highlighterFile);
+        },
         tryGetSource(highlighterFile) {
             return resolve(highlighterFile).snapshot?.text;
         },
@@ -334,14 +340,12 @@ export function adaptHighlighterOutput(
             };
         }
 
-        const snapshot = snapshots.getSnapshotForHighlighterFile(rawRange.file);
+        const resolution = snapshots.resolveHighlighterFile(rawRange.file);
+        const snapshot = resolution.snapshot;
         if (!snapshot) {
-            const manifest = snapshots.getManifest().find(
-                (entry) => entry.highlighterFile === rawRange.file,
-            );
-            const mapping = manifest?.status === 'identityUnavailable'
+            const mapping = resolution.status === 'identityUnavailable'
                 ? 'identityUnavailable'
-                : manifest?.status === 'identityMismatch'
+                : resolution.status === 'identityMismatch'
                     ? 'identityMismatch'
                     : 'bufferUnavailable';
             diagnostics.push({
@@ -376,10 +380,7 @@ export function adaptHighlighterOutput(
             };
         }
 
-        const identity = snapshots.getManifest().find(
-            (entry) => entry.highlighterFile === rawRange.file,
-        );
-        const fileId = identity?.fileId ?? snapshot.fileId;
+        const fileId = resolution.identity?.fileId ?? snapshot.fileId;
         const normalizedRange: SourceRange = Object.freeze({
             ...rawRange,
             file: fileId,

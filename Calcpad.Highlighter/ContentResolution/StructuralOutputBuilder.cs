@@ -89,6 +89,39 @@ namespace Calcpad.Highlighter.ContentResolution
                     }));
             }
 
+            // MacroParser omits #include directives from Stage 3, but retains their
+            // resolved paths and root-document line numbers in the existing trace.
+            foreach (var include in staged.Stage2.IncludeDirectives ?? new List<IncludeDirectiveInfo>())
+            {
+                var rootLine = include.RootLine - 1;
+                if (!TryGetLine(rootSource, rootLine, out var lineText))
+                    continue;
+
+                var orderLine = staged.Stage2.IncludeMap
+                    .Where(pair => pair.Value?.FilePath == include.Path &&
+                        staged.Stage2.SourceMap.GetValueOrDefault(pair.Key, -1) == rootLine)
+                    .Select(pair => pair.Key)
+                    .DefaultIfEmpty(rootLine)
+                    .Min();
+
+                candidates.Add(new Candidate(orderLine, -1, sequence++,
+                    new StructuralConstruct
+                    {
+                        Kind = StructuralConstructKind.IncludeDirective,
+                        Range = new SourceRange
+                        {
+                            File = rootSourceId,
+                            StartLine = rootLine,
+                            StartColumn = 0,
+                            EndLine = rootLine,
+                            EndColumn = lineText.Length
+                        },
+                        Text = lineText,
+                        Origin = SourceOrigin.Local,
+                        Name = include.Name
+                    }));
+            }
+
             // Raw HTML/Markdown lines have no ordinary tokens. Keep them as flat line constructs.
             if (stage3.RawLines is not null)
             {

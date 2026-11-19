@@ -94,11 +94,28 @@ export interface BoundHighlighterConstruct {
     readonly editable: boolean;
 }
 
+export interface BlocksHighlighterCapabilities {
+    readonly sourceCoverage: 'recognized-constructs-only';
+    readonly containment: 'not-provided';
+    readonly semanticSpanRoles: 'unknown-unless-host-asserted';
+    readonly macroProvenance: 'origin-enum-only';
+    readonly embeddedContentKinds: 'collapsed-by-highlighter';
+    readonly ordering: 'highlighter-output-order-preserved';
+}
+
+export interface ProjectionDiagnostic {
+    readonly code: 'sourceIdentityUnresolved' | 'bufferUnavailable' | 'invalidRange';
+    readonly projectionIndex: number;
+    readonly message: string;
+}
+
 export interface BlocksHighlighterProjection {
     readonly contractId: typeof BLOCKS_HIGHLIGHTER_CONTRACT_ID;
     readonly contractVersion: typeof BLOCKS_HIGHLIGHTER_CONTRACT_VERSION;
+    readonly capabilities: BlocksHighlighterCapabilities;
     readonly sourceManifest: readonly ProjectionSourceManifestEntry[];
     readonly constructs: readonly BoundHighlighterConstruct[];
+    readonly diagnostics: readonly ProjectionDiagnostic[];
 }
 
 /**
@@ -118,6 +135,7 @@ export function adaptHighlighterOutput(
         available: snapshot !== undefined,
     }));
 
+    const diagnostics: ProjectionDiagnostic[] = [];
     const constructs = output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
         const rawKind = construct.kind;
         const rawOrigin = construct.origin;
@@ -139,13 +157,23 @@ export function adaptHighlighterOutput(
         if (!range) return { ...base, mapping: 'unmapped' };
 
         const binding = bindings.get(range.file);
-        if (!binding) return { ...base, mapping: 'sourceIdentityUnresolved' };
+        if (!binding) {
+            diagnostics.push({ code: 'sourceIdentityUnresolved', projectionIndex,
+                message: `No host file identity is registered for Highlighter locator "${range.file}".` });
+            return { ...base, mapping: 'sourceIdentityUnresolved' };
+        }
 
         const snapshot = binding.snapshot;
-        if (!snapshot) return { ...base, mapping: 'bufferUnavailable' };
+        if (!snapshot) {
+            diagnostics.push({ code: 'bufferUnavailable', projectionIndex,
+                message: `The host snapshot for "${range.file}" was not available for this projection.` });
+            return { ...base, mapping: 'bufferUnavailable' };
+        }
         if (snapshot.fileId !== binding.fileId) return { ...base, mapping: 'sourceIdentityUnresolved' };
         const hostRange: SourceRange = { ...range, file: snapshot.fileId };
         if (!sourceRangeToOffsets(snapshot.text, hostRange)) {
+            diagnostics.push({ code: 'invalidRange', projectionIndex,
+                message: `Highlighter range for "${range.file}" is outside the captured host snapshot.` });
             return { ...base, mapping: 'invalidRange' };
         }
 
@@ -166,8 +194,17 @@ export function adaptHighlighterOutput(
     return {
         contractId: BLOCKS_HIGHLIGHTER_CONTRACT_ID,
         contractVersion: BLOCKS_HIGHLIGHTER_CONTRACT_VERSION,
+        capabilities: {
+            sourceCoverage: 'recognized-constructs-only',
+            containment: 'not-provided',
+            semanticSpanRoles: 'unknown-unless-host-asserted',
+            macroProvenance: 'origin-enum-only',
+            embeddedContentKinds: 'collapsed-by-highlighter',
+            ordering: 'highlighter-output-order-preserved',
+        },
         sourceManifest,
         constructs,
+        diagnostics,
     };
 }
 

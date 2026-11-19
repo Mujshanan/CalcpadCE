@@ -202,6 +202,12 @@ namespace Calcpad.Highlighter.ContentResolution
             }
         }
 
+        private static string GetStage3SourceFile(StagedResolvedContent staged, int stage3Line)
+        {
+            return staged.Stage3.IncludeMap.TryGetValue(stage3Line, out var info) &&
+                info?.Source == "include" ? info.SourceFile ?? string.Empty : string.Empty;
+        }
+
         private static SourceOrigin GetFallbackOrigin(StagedResolvedContent staged, int stage3Line)
         {
             if (staged.Stage3.MacroExpansions.ContainsKey(stage3Line))

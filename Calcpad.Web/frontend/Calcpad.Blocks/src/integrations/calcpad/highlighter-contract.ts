@@ -58,7 +58,8 @@ export type ConstructSpanRole = 'token' | 'line' | 'construct' | 'unknown';
  */
 export interface HighlighterSourceBinding {
     readonly sourceLocator: string;
-    readonly snapshot: SourceBufferSnapshot;
+    readonly fileId: string;
+    readonly snapshot?: SourceBufferSnapshot;
 }
 
 export interface HighlighterProjectionContext {
@@ -71,8 +72,9 @@ export interface HighlighterProjectionContext {
 export interface ProjectionSourceManifestEntry {
     readonly sourceLocator: string;
     readonly fileId: string;
-    readonly revision: string;
+    readonly revision?: string;
     readonly writable: boolean;
+    readonly available: boolean;
 }
 
 export interface BoundHighlighterConstruct {
@@ -110,9 +112,10 @@ export function adaptHighlighterOutput(
     const bindings = new Map(context.sources.map((entry) => [entry.sourceLocator, entry]));
     const sourceManifest = context.sources.map(({ sourceLocator, snapshot }) => ({
         sourceLocator,
-        fileId: snapshot.fileId,
-        revision: snapshot.revision,
-        writable: snapshot.writable,
+        fileId: entry.fileId,
+        revision: snapshot?.revision,
+        writable: snapshot?.writable ?? false,
+        available: snapshot !== undefined,
     }));
 
     const constructs = output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
@@ -139,6 +142,8 @@ export function adaptHighlighterOutput(
         if (!binding) return { ...base, mapping: 'sourceIdentityUnresolved' };
 
         const snapshot = binding.snapshot;
+        if (!snapshot) return { ...base, mapping: 'bufferUnavailable' };
+        if (snapshot.fileId !== binding.fileId) return { ...base, mapping: 'sourceIdentityUnresolved' };
         const hostRange: SourceRange = { ...range, file: snapshot.fileId };
         if (!sourceRangeToOffsets(snapshot.text, hostRange)) {
             return { ...base, mapping: 'invalidRange' };
@@ -176,7 +181,7 @@ export function bindHighlighterOutput(
         construct.range ? [construct.range.file] : []));
     for (const sourceLocator of locators) {
         const snapshot = snapshots.getSnapshot(sourceLocator);
-        if (snapshot) sources.push({ sourceLocator, snapshot });
+        sources.push({ sourceLocator, fileId: sourceLocator, snapshot });
     }
     return adaptHighlighterOutput(output, { sources }).constructs;
 }

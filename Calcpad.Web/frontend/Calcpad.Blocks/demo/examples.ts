@@ -2,6 +2,7 @@ import parametricSvg from './examples/3D, Plotting, Drawing/Parametric SVG Gener
 import svgDrawing from './examples/3D, Plotting, Drawing/svg_drawing.cpd?raw';
 import matrixIndexing from './examples/Matrices/Matrix Initialization and Indexing.cpd?raw';
 import matrixMath from './examples/Matrices/Matrix Math Functions.cpd?raw';
+import steelISection from './examples/Structural/Steel/I-Section Properties.cpd?raw';
 
 export interface DemoExample {
     readonly id: string;
@@ -28,6 +29,13 @@ export const demoExamples: readonly DemoExample[] = Object.freeze([
             upstreamPath: 'Examples/Engineering/3D, Plotting, Drawing/svg_drawing.cpd',
             content: svgDrawing,
         },
+    },
+    {
+        id: 'steel-i-section',
+        title: 'I-Section Properties',
+        category: 'Structural · Steel · Eurocode EN 1993-1-1',
+        upstreamPath: 'Examples/Structural/Steel/I-Section Properties.cpd',
+        content: steelISection,
     },
     {
         id: 'matrix-indexing',

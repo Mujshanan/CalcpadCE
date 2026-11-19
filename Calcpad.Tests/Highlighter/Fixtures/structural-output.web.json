@@ -118,5 +118,30 @@
       "origin": 0,
       "name": null
     }
+  ],
+  "structuralConstructKindNames": [
+    "Comment",
+    "HtmlOrMarkdownContent",
+    "VariableDefinition",
+    "VariableReassignment",
+    "FunctionDefinition",
+    "FunctionCall",
+    "MacroDefinition",
+    "MacroCall",
+    "CustomUnitDefinition",
+    "ControlFlowDirective",
+    "Command",
+    "IncludeDirective",
+    "DataExchangeDirective",
+    "InputDirective",
+    "SettingsDirective",
+    "MathematicalExpression"
+  ],
+  "sourceOriginNames": [
+    "Local",
+    "IncludedFile",
+    "MacroExpansion",
+    "Generated",
+    "Unknown"
   ]
 }

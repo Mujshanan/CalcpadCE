@@ -20,6 +20,9 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref('');
+const kindFilter = ref('');
+const originFilter = ref('');
+const mappingFilter = ref('');
 
 const selectedConstruct = computed(() =>
     props.selectedIndex === null
@@ -27,25 +30,59 @@ const selectedConstruct = computed(() =>
         : props.constructs.find((item) => item.projectionIndex === props.selectedIndex),
 );
 
+const kindOptions = computed(() =>
+    [...new Set(props.constructs.map((item) => item.kind))].sort(),
+);
+const originOptions = computed(() =>
+    [...new Set(props.constructs.map((item) => item.origin))].sort(),
+);
+const mappingOptions = computed(() =>
+    [...new Set(props.constructs.map((item) => item.mappingStatus))].sort(),
+);
+
 const filteredConstructs = computed(() => {
     const query = searchQuery.value.trim().toLocaleLowerCase();
-    if (!query) return props.constructs;
+    return props.constructs.filter((item) => {
+        if (kindFilter.value && item.kind !== kindFilter.value) return false;
+        if (originFilter.value && item.origin !== originFilter.value) return false;
+        if (mappingFilter.value && item.mappingStatus !== mappingFilter.value) return false;
+        if (!query) return true;
 
-    return props.constructs.filter((item) => [
-        displayKind(item.kind),
-        item.name ?? '',
-        item.text ?? '',
-        displayLocation(item),
-        item.mapping,
-        item.origin,
-    ].some((value) => value.toLocaleLowerCase().includes(query)));
+        return [
+            displayKind(item.kind),
+            item.name ?? '',
+            item.text ?? '',
+            displayLocation(item),
+            item.mappingStatus,
+            item.origin,
+            String(item.rawKind),
+            String(item.rawOrigin),
+        ].some((value) => value.toLocaleLowerCase().includes(query));
+    });
 });
+
+const hasActiveFilters = computed(() =>
+    Boolean(searchQuery.value || kindFilter.value || originFilter.value || mappingFilter.value),
+);
+
+function clearFilters(): void {
+    searchQuery.value = '';
+    kindFilter.value = '';
+    originFilter.value = '';
+    mappingFilter.value = '';
+}
 
 function displayLocation(item: BoundHighlighterConstruct): string {
     const range = item.source?.range;
     return range
         ? range.file + ' · ' + (range.startLine + 1) + ':' + (range.startColumn + 1)
-        : item.sourceLocator ?? item.mapping;
+        : item.sourceLocator ?? item.mappingStatus;
+}
+
+function displayRange(reference: SourceReference | undefined): string {
+    if (!reference) return 'No verified source range';
+    const range = reference.range;
+    return `${range.startLine + 1}:${range.startColumn + 1}–${range.endLine + 1}:${range.endColumn + 1}`;
 }
 
 function displayKind(kind: string): string {
@@ -91,20 +128,49 @@ function openSource(item: BoundHighlighterConstruct): void {
                         placeholder="Search kind, name, source…"
                         autocomplete="off"
                     />
-                    <button
-                        v-if="searchQuery"
-                        type="button"
-                        class="calcpad-blocks__clear-search"
-                        aria-label="Clear search"
-                        @click="searchQuery = ''"
-                    >×</button>
                 </label>
+
+                <div class="calcpad-blocks__filters" aria-label="Construct filters">
+                    <label>
+                        <span>Kind</span>
+                        <select v-model="kindFilter">
+                            <option value="">All kinds</option>
+                            <option v-for="kind in kindOptions" :key="kind" :value="kind">
+                                {{ displayKind(kind) }}
+                            </option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Origin</span>
+                        <select v-model="originFilter">
+                            <option value="">All origins</option>
+                            <option v-for="origin in originOptions" :key="origin" :value="origin">
+                                {{ origin }}
+                            </option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Source mapping</span>
+                        <select v-model="mappingFilter">
+                            <option value="">All mapping states</option>
+                            <option v-for="mapping in mappingOptions" :key="mapping" :value="mapping">
+                                {{ mapping }}
+                            </option>
+                        </select>
+                    </label>
+                    <button
+                        v-if="hasActiveFilters"
+                        type="button"
+                        class="calcpad-blocks__reset"
+                        @click="clearFilters"
+                    >Clear filters</button>
+                </div>
 
                 <p v-if="constructs.length === 0" class="calcpad-blocks__empty">
                     No structural constructs were returned for this snapshot.
                 </p>
                 <p v-else-if="filteredConstructs.length === 0" class="calcpad-blocks__empty">
-                    No constructs match “{{ searchQuery }}”.
+                    No constructs match the current search and filters.
                 </p>
 
                 <article
@@ -113,14 +179,14 @@ function openSource(item: BoundHighlighterConstruct): void {
                     class="calcpad-blocks__construct"
                     :class="{
                         'is-selected': selectedIndex === item.projectionIndex,
-                        'is-unmapped': item.mapping !== 'verified',
+                        'is-unmapped': item.mappingStatus !== 'verified',
                     }"
                 >
                     <button
                         type="button"
                         class="calcpad-blocks__construct-select"
                         :aria-pressed="selectedIndex === item.projectionIndex"
-                        @click="$emit('select', item.projectionIndex)"
+                        @click="emit('select', item.projectionIndex)"
                     >
                         <span class="calcpad-blocks__construct-heading">
                             <span class="calcpad-blocks__construct-kind">{{ displayKind(item.kind) }}</span>
@@ -129,7 +195,7 @@ function openSource(item: BoundHighlighterConstruct): void {
                         <code v-if="item.text" class="calcpad-blocks__construct-text">{{ item.text }}</code>
                         <span class="calcpad-blocks__construct-location">{{ displayLocation(item) }}</span>
                         <span class="calcpad-blocks__construct-status">
-                            {{ item.mapping === 'verified' ? 'Source mapped' : item.mapping }}
+                            {{ item.mappingStatus === 'verified' ? 'Source mapped' : item.mappingStatus }}
                             · {{ item.editable ? 'Editable source' : 'Read only' }}
                         </span>
                     </button>
@@ -140,6 +206,34 @@ function openSource(item: BoundHighlighterConstruct): void {
                         @click="openSource(item)"
                     >Open source ↗</button>
                 </article>
+
+                <section
+                    v-if="selectedConstruct"
+                    class="calcpad-blocks__inspector"
+                    aria-label="Selected construct details"
+                >
+                    <div class="calcpad-blocks__section-title">
+                        <span>Selected construct</span>
+                        <span>#{{ selectedConstruct.projectionIndex }}</span>
+                    </div>
+                    <dl>
+                        <div><dt>Kind</dt><dd>{{ displayKind(selectedConstruct.kind) }}</dd></div>
+                        <div><dt>Raw kind</dt><dd>{{ selectedConstruct.rawKind }}</dd></div>
+                        <div><dt>Origin</dt><dd>{{ selectedConstruct.origin }}</dd></div>
+                        <div><dt>Raw origin</dt><dd>{{ selectedConstruct.rawOrigin }}</dd></div>
+                        <div><dt>Mapping</dt><dd>{{ selectedConstruct.mappingStatus }}</dd></div>
+                        <div><dt>Source range</dt><dd>{{ displayRange(selectedConstruct.source) }}</dd></div>
+                        <div><dt>Highlighter locator</dt><dd>{{ selectedConstruct.sourceLocator ?? 'Unavailable' }}</dd></div>
+                        <div><dt>Span role</dt><dd>{{ selectedConstruct.spanRole }}</dd></div>
+                        <div><dt>Source access</dt><dd>{{ selectedConstruct.editable ? 'Editable' : 'Read only' }}</dd></div>
+                    </dl>
+                    <button
+                        v-if="selectedConstruct.source"
+                        type="button"
+                        class="calcpad-blocks__open-source"
+                        @click="openSource(selectedConstruct)"
+                    >Open selected source ↗</button>
+                </section>
             </aside>
         </div>
 
@@ -196,7 +290,7 @@ function openSource(item: BoundHighlighterConstruct): void {
     display: grid;
     flex: 1;
     min-height: 0;
-    grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.9fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.9fr);
 }
 .calcpad-blocks__source,
 .calcpad-blocks__constructs {
@@ -230,7 +324,6 @@ function openSource(item: BoundHighlighterConstruct): void {
     top: 36px;
     display: flex;
     align-items: center;
-    gap: 4px;
     margin: 8px 8px 2px;
     padding: 4px 8px;
     background: var(--calcpad-blocks-background, #fff);
@@ -247,13 +340,39 @@ function openSource(item: BoundHighlighterConstruct): void {
     outline: 0;
     font: inherit;
 }
-.calcpad-blocks__clear-search {
-    padding: 0 4px;
+.calcpad-blocks__filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin: 6px 8px 4px;
+}
+.calcpad-blocks__filters label {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
     color: var(--calcpad-blocks-muted, #667085);
+    font-size: 10px;
+}
+.calcpad-blocks__filters select {
+    width: 100%;
+    min-width: 0;
+    padding: 5px 6px;
+    color: inherit;
+    background: var(--calcpad-blocks-background, #fff);
+    border: 1px solid var(--calcpad-blocks-border, #d8dee4);
+    border-radius: 5px;
+    font: inherit;
+}
+.calcpad-blocks__reset {
+    justify-self: start;
+    padding: 3px 0;
+    color: var(--calcpad-blocks-accent, #245ea8);
     background: transparent;
     border: 0;
     cursor: pointer;
-    font-size: 18px;
+    font: inherit;
+    font-size: 11px;
 }
 .calcpad-blocks__constructs { gap: 6px; padding-bottom: 10px; }
 .calcpad-blocks__construct {
@@ -287,7 +406,9 @@ function openSource(item: BoundHighlighterConstruct): void {
 }
 .calcpad-blocks__construct-select:focus-visible,
 .calcpad-blocks__open-source:focus-visible,
-.calcpad-blocks__search:focus-within {
+.calcpad-blocks__search:focus-within,
+.calcpad-blocks__filters select:focus-visible,
+.calcpad-blocks__reset:focus-visible {
     outline: 2px solid var(--calcpad-blocks-accent, #3977c3);
     outline-offset: 2px;
 }
@@ -315,6 +436,36 @@ function openSource(item: BoundHighlighterConstruct): void {
     font: inherit;
     font-size: 11px;
 }
+.calcpad-blocks__inspector {
+    margin: 8px;
+    border: 1px solid var(--calcpad-blocks-border, #d8dee4);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.calcpad-blocks__inspector dl {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 4px 10px 8px;
+}
+.calcpad-blocks__inspector dl > div {
+    display: grid;
+    grid-template-columns: minmax(88px, 0.7fr) minmax(0, 1.3fr);
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--calcpad-blocks-border, #edf0f2);
+}
+.calcpad-blocks__inspector dt {
+    color: var(--calcpad-blocks-muted, #667085);
+    font-size: 11px;
+}
+.calcpad-blocks__inspector dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+}
+.calcpad-blocks__inspector > .calcpad-blocks__open-source { margin: 0 10px 8px; }
 .calcpad-blocks__empty { margin: 12px; color: var(--calcpad-blocks-muted, #667085); }
 .calcpad-blocks__footer {
     justify-content: space-between;

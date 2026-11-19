@@ -14,6 +14,7 @@ interface HighlightToken {
 
 interface MonacoEditorHandle {
     revealRange(line: number, column: number, length: number): void;
+    refreshHighlight(): void;
 }
 
 const selectedExampleId = ref(demoExamples[0].id);

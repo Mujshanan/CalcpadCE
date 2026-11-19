@@ -17,7 +17,7 @@ namespace Calcpad.Highlighter.ContentResolution
         /// <param name="content">Raw Calcpad source code</param>
         /// <param name="sourceFilePath">Path of the document, used to resolve #include</param>
         /// <param name="macroCalls">App-level macro call mode, before any <c>#settings</c></param>
-        public StagedResolvedContent GetStagedContent(string content, string sourceFilePath = null, MacroCallMode macroCalls = MacroCallMode.Auto)
+        public StagedResolvedContent GetStagedContent(string content, string sourceFilePath = null, MacroCallMode macroCalls = MacroCallMode.Auto, ISourceBufferProvider sourceBuffers = null)
         {
             if (string.IsNullOrEmpty(content))
                 throw new ArgumentException("Content cannot be null or empty", nameof(content));
@@ -29,7 +29,7 @@ namespace Calcpad.Highlighter.ContentResolution
             }
 
             var stage1 = ProcessStage1(lines);
-            var stage2 = ProcessStage2(stage1, sourceFilePath, macroCalls, out var outputs);
+            var stage2 = ProcessStage2(stage1, sourceFilePath, macroCalls, sourceBuffers, out var outputs);
             var stage3 = ProcessStage3(stage2, stage1, outputs);
 
             return new StagedResolvedContent

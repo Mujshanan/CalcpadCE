@@ -24,27 +24,46 @@ namespace Calcpad.Highlighter.ContentResolution
         /// <param name="Origins">Stage 2 line and column each character was read from, or -1; null without expansion.</param>
         private readonly record struct OutputLine(string Text, int Stage2Line, IReadOnlyList<string> ExpandedMacros, int ContentIndex, int ContentCount, (int Line, int Column)[] Origins);
 
-        private Stage2Result ProcessStage2(Stage1Result stage1, string sourceFilePath, MacroCallMode macroCalls, out List<OutputLine> outputs)
+        private Stage2Result ProcessStage2(Stage1Result stage1, string sourceFilePath, MacroCallMode macroCalls, ISourceBufferProvider sourceBuffers, out List<OutputLine> outputs)
         {
             var trace = new MacroTrace();
             var includes = new Dictionary<string, Stage1Result>(PathComparer);
             var includedFileHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var suppliedBuffers = new Dictionary<string, string>(PathComparer);
+            bool TryGetSuppliedBuffer(string path, out string raw)
+            {
+                if (suppliedBuffers.TryGetValue(path, out raw))
+                    return true;
+                if (sourceBuffers is not null && sourceBuffers.TryGetSource(path, out raw))
+                {
+                    raw ??= string.Empty;
+                    suppliedBuffers[path] = raw;
+                    return true;
+                }
+                raw = null;
+                return false;
+            }
+
             var parser = new MacroParser
             {
                 SourceFilePath = sourceFilePath,
                 DefaultMacroCalls = macroCalls,
                 Trace = trace,
                 Debug = true,
+                IncludeExists = path => TryGetSuppliedBuffer(path, out _),
                 Include = (path, _) =>
                 {
                     string raw;
-                    try
+                    if (!TryGetSuppliedBuffer(path, out raw))
                     {
-                        raw = File.ReadAllText(path);
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                    {
-                        return string.Empty;
+                        try
+                        {
+                            raw = File.ReadAllText(path);
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            return string.Empty;
+                        }
                     }
                     includedFileHashes[path] = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
                     var included = ProcessStage1(SplitLines(MacroParser.FilterIncludedContent(raw, keepLineCount: true)));

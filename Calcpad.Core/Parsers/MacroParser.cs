@@ -232,6 +232,13 @@ namespace Calcpad.Core
             _ => _macros.Count != 0
         };
         public Func<string, Queue<string>, string> Include;
+
+        /// <summary>
+        /// Optional host predicate for includes that exist in an unsaved source buffer but not
+        /// yet on disk. The resolved path is passed to both this predicate and <see cref="Include"/>.
+        /// </summary>
+        public Func<string, bool> IncludeExists { get; set; }
+
         public string SourceFilePath { get; set; }
         private readonly List<CalcpadError> _errorList = new();
         public IReadOnlyList<CalcpadError> Errors => _errorList;
@@ -553,7 +560,7 @@ namespace Calcpad.Core
                 var resolvedPath = sourceDir != null
                     ? Path.GetFullPath(expanded, sourceDir)
                     : Path.GetFullPath(expanded);
-                var fileExists = File.Exists(resolvedPath);
+                var fileExists = File.Exists(resolvedPath) || IncludeExists?.Invoke(resolvedPath) == true;
 
                 if (!_includeStack.Add(resolvedPath))
                 {

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Calcpad.Core;
 using Calcpad.Highlighter.Linter.Helpers;
+using Calcpad.Highlighter.Tokenizer.Models;
+using ParseMode = Calcpad.Highlighter.Linter.Models.ParseMode;
 
 namespace Calcpad.Highlighter.ContentResolution
 {
@@ -327,6 +329,15 @@ namespace Calcpad.Highlighter.ContentResolution
 
     public class Stage3Result
     {
+        /// <summary>Tokens produced by the existing Stage 3 Lint-mode tokenizer.</summary>
+        public List<Token> Tokens { get; set; } = new();
+
+        /// <summary>Parse mode for each Stage 3 line, when inside HTML or Markdown content.</summary>
+        public Dictionary<int, ParseMode> LineModes { get; set; } = new();
+
+        /// <summary>Stage 3 lines containing raw HTML or Markdown content.</summary>
+        public HashSet<int> RawLines { get; set; } = new();
+
         public List<string> Lines { get; set; }
         public Dictionary<int, int> SourceMap { get; set; }
         public Dictionary<int, SourceInfo> IncludeMap { get; set; }

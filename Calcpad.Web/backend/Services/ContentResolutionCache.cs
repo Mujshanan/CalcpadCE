@@ -71,8 +71,20 @@ namespace Calcpad.Server.Services
 
         /// <param name="useTrace">Overlay the latest /convert trace for this content, if any.</param>
         public StagedResolvedContent GetOrResolve(string content, string? sourceFilePath, bool useTrace = false,
-            MacroCallMode macroCalls = MacroCallMode.Auto)
+            MacroCallMode macroCalls = MacroCallMode.Auto, ISourceBufferProvider? sourceBuffers = null)
         {
+            // Host buffers have no revision/enumeration contract. Resolve them directly rather
+            // than risk returning a cached result from an earlier unsaved include revision.
+            if (sourceBuffers is not null)
+            {
+                var staged = new ContentResolver().GetStagedContent(content, sourceFilePath, macroCalls, sourceBuffers);
+                if (!useTrace || staged.Stage2.IncludedFileHashes.Count != 0)
+                    return staged;
+
+                var trace = _traces.Get(ContentKey.For(sourceFilePath, content));
+                return trace is null ? staged : ContentResolver.ApplyRuntimeTrace(staged, trace.Trace);
+            }
+
             var fileKey = sourceFilePath ?? string.Empty;
             var traceKey = ContentKey.For(sourceFilePath, content);
             var key = $"{traceKey}|{(int)macroCalls}";

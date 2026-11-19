@@ -160,6 +160,9 @@ namespace Calcpad.Highlighter.ContentResolution
             return new Stage3Result
             {
                 Lines = lines,
+                Tokens = tokenizerResult.Tokens,
+                LineModes = tokenizerResult.LineModes,
+                RawLines = tokenizerResult.RawLines,
                 SourceMap = sourceMap,
                 IncludeMap = filteredIncludeMap,
                 MacroExpansions = macroExpansions,

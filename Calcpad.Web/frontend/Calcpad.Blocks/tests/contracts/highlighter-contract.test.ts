@@ -227,6 +227,37 @@ test('reports bufferUnavailable when a stable host identity has no captured snap
     assert.equal(result.diagnostics[0].code, 'source-buffer-unavailable');
 });
 
+test('converts host snapshot-provider exceptions into bufferUnavailable diagnostics', () => {
+    const host: SourceSnapshotProvider = {
+        getSnapshot() {
+            throw new Error('host buffer temporarily unavailable');
+        },
+    };
+    const snapshots = createHighlighterSourceSnapshotSession(
+        rootSnapshot,
+        '/workspace/main.cpd',
+        host,
+        () => ({ fileId: 'host:library' }),
+    );
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            range: {
+                file: '/resolved/lib.cpd',
+                startLine: 0,
+                startColumn: 0,
+                endLine: 0,
+                endColumn: 1,
+            },
+            origin: 'IncludedFile',
+        })],
+    }, snapshots);
+
+    assert.equal(result.constructs[0].mappingStatus, 'bufferUnavailable');
+    assert.equal(result.constructs[0].source, undefined);
+    assert.equal(result.diagnostics[0].code, 'source-buffer-provider-failed');
+    assert.equal(result.sourceManifest[1].status, 'bufferUnavailable');
+});
+
 test('rejects a snapshot whose identity does not match the resolved host identity', () => {
     const host: SourceSnapshotProvider = {
         getSnapshot: () => ({

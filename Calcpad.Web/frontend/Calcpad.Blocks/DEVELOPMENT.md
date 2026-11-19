@@ -1,16 +1,18 @@
 # Calcpad.Blocks — Development Guide
 
-> Status: initial architecture and development plan  
+> Status: staged architecture and implementation plan  
 > Package location: `Calcpad.Web/frontend/Calcpad.Blocks/`  
-> Implementation status: initial source-buffer contracts and a Vue inspection workbench are implemented; the full semantic block projection and BlockSuite editor are not yet implemented.
+> Implementation status: source contracts, Highlighter adapter, inspection workbench, and the first standalone BlockSuite projection/editor foundation are implemented. Semantic projection and Calcpad Web integration remain pending.
 
 ## Current implementation status
 
-The package now has a minimal Vue 3 workbench, Highlighter structural-output adapter, immutable source snapshot contracts, revision-bound source references, and UTF-16 range conversion tests. See [README.md](README.md) and [SOURCE_BUFFER_CONTRACT.md](SOURCE_BUFFER_CONTRACT.md).
+The package contains the host-owned source contracts, Highlighter structural-output adapter, immutable source snapshots, revision-bound source references, UTF-16 range conversion, and the original source/construct inspection workbench.
 
-The current workbench is an inspection UI: it shows the original source unchanged beside the flat constructs returned by the current Highlighter output. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships.
+The initial BlockSuite foundation is also implemented using the stable `@blocksuite/store@0.22.4` package. A replaceable adapter creates a transient BlockSuite document with a Calcpad worksheet root and one full-source text block. A Vue renderer reads the source from that BlockSuite model. The projection is read-only, recreated for a new host document/revision/source snapshot, and disposed when replaced or unmounted. Snapshot serialization is for diagnostics/tests only; it is not source persistence.
 
-The UI is not yet wired into calcpad-web. BlockSuite integration remains a separate step after the source projection contract is complete; the BlockSuite document must remain an ephemeral rendering projection, never another persisted worksheet or undo history.
+The initial document deliberately remains one text block. Current Highlighter output is flat, some ranges are token-sized, and no containment relationships are supplied, so Blocks must not infer semantic block boundaries or nesting. Specialized projection and renderers remain future work.
+
+The package is not yet wired into calcpad-web. The host continues to own source buffers, identity, revisions, persistence, edits, conflict handling, navigation, and undo/redo. Do not turn the BlockSuite tree into a second persisted worksheet or independent authored history. See [README.md](README.md) and [BLOCKSUITE_INTEGRATION.md](BLOCKSUITE_INTEGRATION.md).
 
 ## 1. Purpose
 

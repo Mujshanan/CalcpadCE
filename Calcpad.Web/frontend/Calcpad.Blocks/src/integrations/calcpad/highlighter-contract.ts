@@ -184,6 +184,14 @@ export function createHighlighterSourceSnapshotSession(
 ): HighlighterSourceSnapshotSession {
     const root = freezeSnapshot(rootSnapshot);
     const resolutions = new Map<string, HighlighterSourceResolution>();
+    // Locator aliases may resolve to the same host document. Capture by stable
+    // host identity so one projection cannot mix revisions for that document.
+    const snapshotsByFileId = new Map<string, HighlighterSourceResolution>();
+    snapshotsByFileId.set(root.fileId, Object.freeze({
+        identity: Object.freeze({ fileId: root.fileId, locator: rootHighlighterFile }),
+        snapshot: root,
+        status: 'captured' as const,
+    }));
 
     resolutions.set(rootHighlighterFile, Object.freeze({
         identity: Object.freeze({ fileId: root.fileId, locator: rootHighlighterFile }),
@@ -206,15 +214,23 @@ export function createHighlighterSourceSnapshotSession(
             fileId: resolvedIdentity.fileId,
             locator: resolvedIdentity.locator,
         });
-        const candidate = identity.fileId === root.fileId
-            ? root
-            : hostSnapshots.getSnapshot(identity.fileId);
+        const cachedByIdentity = snapshotsByFileId.get(identity.fileId);
+        if (cachedByIdentity) {
+            const result: HighlighterSourceResolution = Object.freeze({
+                ...cachedByIdentity,
+                identity,
+            });
+            resolutions.set(highlighterFile, result);
+            return result;
+        }
 
+        const candidate = hostSnapshots.getSnapshot(identity.fileId);
         if (!candidate) {
             const missing: HighlighterSourceResolution = Object.freeze({
                 identity,
                 status: 'bufferUnavailable' as const,
             });
+            snapshotsByFileId.set(identity.fileId, missing);
             resolutions.set(highlighterFile, missing);
             return missing;
         }
@@ -224,6 +240,7 @@ export function createHighlighterSourceSnapshotSession(
                 identity,
                 status: 'identityMismatch' as const,
             });
+            snapshotsByFileId.set(identity.fileId, mismatch);
             resolutions.set(highlighterFile, mismatch);
             return mismatch;
         }
@@ -234,6 +251,7 @@ export function createHighlighterSourceSnapshotSession(
             snapshot: captured,
             status: 'captured' as const,
         });
+        snapshotsByFileId.set(identity.fileId, result);
         resolutions.set(highlighterFile, result);
         return result;
     }

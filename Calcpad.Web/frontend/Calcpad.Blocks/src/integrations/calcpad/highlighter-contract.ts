@@ -66,9 +66,18 @@ const knownOrigins = new Set<string>([
  * accepted as strings deliberately: a newer Highlighter may add enum members
  * before this adapter is updated, and those values must not break projection.
  */
+export interface HighlighterSourceRange {
+    /** Highlighter-side path/URI locator, not a host SourceFileId. */
+    readonly file: HighlighterFileLocator;
+    readonly startLine: number;
+    readonly startColumn: number;
+    readonly endLine: number;
+    readonly endColumn: number;
+}
+
 export interface HighlighterStructuralConstruct {
     readonly kind: string;
-    readonly range: SourceRange | null;
+    readonly range: HighlighterSourceRange | null;
     readonly text: string | null;
     readonly origin: string;
     readonly name?: string | null;
@@ -254,7 +263,7 @@ export interface BoundHighlighterConstruct {
     /** Exact origin value returned by Highlighter. */
     readonly rawOrigin: string;
     /** Original range, retaining the Highlighter file locator. */
-    readonly rawRange: SourceRange | null;
+    readonly rawRange: HighlighterSourceRange | null;
     readonly sourceLocator?: string;
     /** Highlighter does not currently expose a reliable semantic span role. */
     readonly spanRole: HighlighterSpanRole;

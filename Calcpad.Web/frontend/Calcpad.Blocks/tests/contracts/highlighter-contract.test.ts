@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
     adaptHighlighterOutput,
@@ -286,4 +287,85 @@ test('preserves unknown future kinds and origins without inventing semantics', (
     assert.equal(result.constructs[0].origin, 'Unknown');
     assert.equal(result.constructs[0].rawOrigin, 'FutureOrigin');
     assert.equal(result.constructs[0].spanRole, 'unknown');
+});
+
+
+test('accepts the actual C# System.Text.Json web-default numeric-enum payload fixture', () => {
+    const fixtureUrl = new URL(
+        '../../../../../Calcpad.Tests/Highlighter/Fixtures/structural-output.web.json',
+        import.meta.url,
+    );
+    const payload = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as HighlighterStructuralOutput;
+    const snapshots = createHighlighterSourceSnapshotSession(
+        {
+            fileId: 'host:fixture',
+            revision: 'fixture-r1',
+            text: 'x',
+            writable: true,
+        },
+        'fixture://root',
+        hostOf([]),
+        () => undefined,
+    );
+
+    const result = adaptHighlighterOutput(payload, snapshots);
+
+    assert.deepEqual(result.constructs.map((item) => item.kind), [
+        'Comment',
+        'HtmlOrMarkdownContent',
+        'VariableDefinition',
+        'VariableReassignment',
+        'FunctionDefinition',
+        'FunctionCall',
+        'MacroDefinition',
+        'MacroCall',
+        'CustomUnitDefinition',
+        'ControlFlowDirective',
+        'Command',
+        'IncludeDirective',
+        'DataExchangeDirective',
+        'InputDirective',
+        'SettingsDirective',
+        'MathematicalExpression',
+    ]);
+    assert.deepEqual(result.constructs.map((item) => item.origin), [
+        'Local',
+        'IncludedFile',
+        'MacroExpansion',
+        'Generated',
+        'Unknown',
+        'Local',
+        'IncludedFile',
+        'MacroExpansion',
+        'Generated',
+        'Unknown',
+        'Local',
+        'IncludedFile',
+        'MacroExpansion',
+        'Generated',
+        'Unknown',
+        'Local',
+    ]);
+    assert.equal(result.constructs[0].rawKind, 0);
+    assert.equal(result.constructs[0].rawOrigin, 0);
+    assert.equal(result.constructs[0].mapping, 'verified');
+    assert.equal(result.constructs[0].source?.fileId, 'host:fixture');
+    assert.equal(result.constructs[0].editable, true);
+    assert.equal(result.constructs[1].mapping, 'unmapped');
+    assert.equal(result.constructs.length, 16);
+});
+
+test('preserves unknown numeric enum values from future C# versions', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            kind: 65535,
+            origin: 65534,
+            range: null,
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].kind, 'Unknown');
+    assert.equal(result.constructs[0].rawKind, 65535);
+    assert.equal(result.constructs[0].origin, 'Unknown');
+    assert.equal(result.constructs[0].rawOrigin, 65534);
 });

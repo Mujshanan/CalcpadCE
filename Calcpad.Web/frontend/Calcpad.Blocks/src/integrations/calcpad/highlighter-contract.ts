@@ -89,9 +89,10 @@ const knownOrigins = new Set<string>([
 ]);
 
 /**
- * This is the current C# Highlighter payload shape. The kind and origin are
- * accepted as strings deliberately: a newer Highlighter may add enum members
- * before this adapter is updated, and those values must not break projection.
+ * Current ASP.NET Core MVC JSON uses System.Text.Json web defaults and does not
+ * register JsonStringEnumConverter. Enum fields therefore arrive as numeric
+ * ordinals. String values are also accepted for compatibility with explicit
+ * string-enum serializers and older fixtures. Unknown values remain lossless.
  */
 export interface HighlighterSourceRange {
     /** Highlighter-side path/URI locator, not a host SourceFileId. */

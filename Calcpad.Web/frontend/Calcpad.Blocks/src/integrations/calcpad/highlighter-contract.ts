@@ -34,6 +34,33 @@ export type HighlighterConstructKind =
 export const BLOCKS_HIGHLIGHTER_CONTRACT_ID = 'calcpad.highlighter.blocks' as const;
 export const BLOCKS_HIGHLIGHTER_CONTRACT_VERSION = 1 as const;
 
+const kindNames: readonly HighlighterConstructKind[] = [
+    'Comment',
+    'HtmlOrMarkdownContent',
+    'VariableDefinition',
+    'VariableReassignment',
+    'FunctionDefinition',
+    'FunctionCall',
+    'MacroDefinition',
+    'MacroCall',
+    'CustomUnitDefinition',
+    'ControlFlowDirective',
+    'Command',
+    'IncludeDirective',
+    'DataExchangeDirective',
+    'InputDirective',
+    'SettingsDirective',
+    'MathematicalExpression',
+] as const;
+
+const originNames: readonly SourceOrigin[] = [
+    'Local',
+    'IncludedFile',
+    'MacroExpansion',
+    'Generated',
+    'Unknown',
+];
+
 const knownKinds = new Set<string>([
     'Comment',
     'HtmlOrMarkdownContent',
@@ -76,10 +103,11 @@ export interface HighlighterSourceRange {
 }
 
 export interface HighlighterStructuralConstruct {
-    readonly kind: string;
+    /** System.Text.Json emits enum values as integers unless a string converter is configured. */
+    readonly kind: string | number;
     readonly range: HighlighterSourceRange | null;
     readonly text: string | null;
-    readonly origin: string;
+    readonly origin: string | number;
     readonly name?: string | null;
 }
 
@@ -262,12 +290,12 @@ export interface BoundHighlighterConstruct {
     /** Known normalized kind, or Unknown when the runtime value is not known. */
     readonly kind: HighlighterConstructKind | 'Unknown';
     /** Exact enum/string value returned by Highlighter. */
-    readonly rawKind: string;
+    readonly rawKind: string | number;
     readonly text: string | null;
     readonly name?: string | null;
     readonly origin: SourceOrigin;
     /** Exact origin value returned by Highlighter. */
-    readonly rawOrigin: string;
+    readonly rawOrigin: string | number;
     /** Original range, retaining the Highlighter file locator. */
     readonly rawRange: HighlighterSourceRange | null;
     readonly sourceLocator?: string;
@@ -420,10 +448,12 @@ function freezeSnapshot(snapshot: SourceBufferSnapshot): SourceBufferSnapshot {
     });
 }
 
-function normalizeKind(kind: string): HighlighterConstructKind | 'Unknown' {
+function normalizeKind(kind: string | number): HighlighterConstructKind | 'Unknown' {
+    if (typeof kind === 'number') return kindNames[kind] ?? 'Unknown';
     return knownKinds.has(kind) ? kind as HighlighterConstructKind : 'Unknown';
 }
 
-function normalizeOrigin(origin: string): SourceOrigin {
+function normalizeOrigin(origin: string | number): SourceOrigin {
+    if (typeof origin === 'number') return originNames[origin] ?? 'Unknown';
     return knownOrigins.has(origin) ? origin as SourceOrigin : 'Unknown';
 }

@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { BoundHighlighterConstruct } from '../integrations/calcpad/highlighter-contract';
-import type { SourceReference } from '../core/source/contracts';
+import type { SourceBufferSnapshot, SourceReference } from '../core/source/contracts';
 
 const props = withDefaults(
     defineProps<{
         documentLabel?: string;
         revision: string;
         sourceText: string;
+        sourceFileId?: string;
+        currentSourceRevisions?: Readonly<Record<string, string>>;
+        sourceBuffers?: readonly SourceBufferSnapshot[];
         constructs: readonly BoundHighlighterConstruct[];
         selectedIndex?: number | null;
     }>(),
@@ -39,6 +42,10 @@ const originOptions = computed(() =>
 const mappingOptions = computed(() =>
     [...new Set(props.constructs.map((item) => item.mappingStatus))].sort(),
 );
+const visibleCount = ref(200);
+const sourcePane = ref<HTMLElement | null>(null);
+
+const filteredConstructs = computed(() => {
 
 const filteredConstructs = computed(() => {
     const query = searchQuery.value.trim().toLocaleLowerCase();
@@ -64,6 +71,112 @@ const filteredConstructs = computed(() => {
 const hasActiveFilters = computed(() =>
     Boolean(searchQuery.value || kindFilter.value || originFilter.value || mappingFilter.value),
 );
+
+const visibleConstructs = computed(() => filteredConstructs.value.slice(0, visibleCount.value));
+const hasMoreConstructs = computed(() => visibleCount.value < filteredConstructs.value.length);
+
+watch(filteredConstructs, () => {
+    visibleCount.value = 200;
+});
+
+const selectedSource = computed(() => {
+    const reference = selectedConstruct.value?.source;
+    if (!reference) {
+        return {
+            fileId: props.sourceFileId,
+            revision: props.revision,
+            text: props.sourceText,
+            available: true,
+        };
+    }
+
+    if (props.sourceFileId && reference.fileId === props.sourceFileId) {
+        return {
+            fileId: props.sourceFileId,
+            revision: props.revision,
+            text: props.sourceText,
+            available: true,
+        };
+    }
+
+    const buffer = props.sourceBuffers?.find((item) => item.fileId === reference.fileId);
+    if (buffer) {
+        return {
+            fileId: buffer.fileId,
+            revision: buffer.revision,
+            text: buffer.text,
+            available: true,
+        };
+    }
+
+    if (!props.sourceFileId) {
+        return {
+            fileId: undefined,
+            revision: undefined,
+            text: props.sourceText,
+            available: true,
+        };
+    }
+
+    return {
+        fileId: reference.fileId,
+        revision: undefined,
+        text: '',
+        available: false,
+    };
+});
+
+const sourceLines = computed(() => selectedSource.value.text.split(/\\r\\n|\\r|\\n/));
+
+function freshnessOf(item: BoundHighlighterConstruct): 'current' | 'stale' | 'unknown' {
+    if (!item.source) return 'unknown';
+    const knownRevision = props.currentSourceRevisions?.[item.source.fileId]
+        ?? (item.source.fileId === props.sourceFileId ? props.revision : undefined);
+    if (knownRevision === undefined) return 'unknown';
+    return knownRevision === item.source.revision ? 'current' : 'stale';
+}
+
+function lineSegments(lineIndex: number): { before: string; selected: string; after: string } {
+    const line = sourceLines.value[lineIndex] ?? '';
+    const reference = selectedConstruct.value?.source;
+    if (!reference || selectedSource.value.fileId !== reference.fileId) {
+        return { before: line, selected: '', after: '' };
+    }
+
+    const range = reference.range;
+    if (lineIndex < range.startLine || lineIndex > range.endLine) {
+        return { before: line, selected: '', after: '' };
+    }
+
+    const start = lineIndex === range.startLine ? range.startColumn : 0;
+    const end = lineIndex === range.endLine ? range.endColumn : line.length;
+    const safeStart = Math.max(0, Math.min(start, line.length));
+    const safeEnd = Math.max(safeStart, Math.min(end, line.length));
+    return {
+        before: line.slice(0, safeStart),
+        selected: line.slice(safeStart, safeEnd),
+        after: line.slice(safeEnd),
+    };
+}
+
+watch(selectedConstruct, async (item) => {
+    const reference = item?.source;
+    if (!reference || selectedSource.value.fileId !== reference.fileId) return;
+    await nextTick();
+    sourcePane.value?.querySelector<HTMLElement>(`[data-source-line="${reference.range.startLine}"]`)
+        ?.scrollIntoView({ block: 'center' });
+});
+
+function selectConstruct(item: BoundHighlighterConstruct): void {
+    emit('select', item.projectionIndex);
+    if (item.source) emit('openSource', item.source);
+}
+
+function showMoreConstructs(): void {
+    visibleCount.value = Math.min(visibleCount.value + 200, filteredConstructs.value.length);
+}
+
+
 
 function clearFilters(): void {
     searchQuery.value = '';
@@ -108,10 +221,22 @@ function openSource(item: BoundHighlighterConstruct): void {
         <div class="calcpad-blocks__workspace">
             <section class="calcpad-blocks__source" aria-label="Original source">
                 <div class="calcpad-blocks__section-title">
-                    <span>Original source</span>
-                    <span>Read only · {{ sourceText.length.toLocaleString() }} characters</span>
+                    <span>Source preview</span>
+                    <span v-if="selectedSource.available">
+                        {{ selectedSource.fileId ?? documentLabel }} · {{ selectedSource.text.length.toLocaleString() }} characters
+                    </span>
+                    <span v-else>Source buffer not supplied by host</span>
                 </div>
-                <pre><code>{{ sourceText }}</code></pre>
+                <p v-if="!selectedSource.available" class="calcpad-blocks__empty">
+                    This construct belongs to another source file. Supply that file in
+                    <code>sourceBuffers</code> to preview and highlight its range.
+                </p>
+                <pre v-else ref="sourcePane" tabindex="0" aria-label="Read-only source preview"><code><span
+                    v-for="(line, lineIndex) in sourceLines"
+                    :key="lineIndex"
+                    :data-source-line="lineIndex"
+                    class="calcpad-blocks__source-line"
+                ><span>{{ lineSegments(lineIndex).before }}</span><mark v-if="lineSegments(lineIndex).selected">{{ lineSegments(lineIndex).selected }}</mark><span>{{ lineSegments(lineIndex).after }}</span>{{ lineIndex < sourceLines.length - 1 ? '\n' : '' }}</span></code></pre>
             </section>
 
             <aside class="calcpad-blocks__constructs" aria-label="Recognized constructs">
@@ -130,7 +255,7 @@ function openSource(item: BoundHighlighterConstruct): void {
                     />
                 </label>
 
-                <div class="calcpad-blocks__filters" aria-label="Construct filters">
+                <div class="calcpad-blocks__filters" role="group" aria-label="Construct filters">
                     <label>
                         <span>Kind</span>
                         <select v-model="kindFilter">
@@ -174,7 +299,7 @@ function openSource(item: BoundHighlighterConstruct): void {
                 </p>
 
                 <article
-                    v-for="item in filteredConstructs"
+                    v-for="item in visibleConstructs"
                     :key="item.projectionIndex"
                     class="calcpad-blocks__construct"
                     :class="{
@@ -186,16 +311,21 @@ function openSource(item: BoundHighlighterConstruct): void {
                         type="button"
                         class="calcpad-blocks__construct-select"
                         :aria-pressed="selectedIndex === item.projectionIndex"
-                        @click="emit('select', item.projectionIndex)"
+                        @click="selectConstruct(item)"
                     >
                         <span class="calcpad-blocks__construct-heading">
                             <span class="calcpad-blocks__construct-kind">{{ displayKind(item.kind) }}</span>
+                            <span v-if="item.kind === 'Unknown'" class="calcpad-blocks__construct-name">
+                                Raw: {{ item.rawKind }}
+                            </span>
                             <span v-if="item.name" class="calcpad-blocks__construct-name">{{ item.name }}</span>
                         </span>
                         <code v-if="item.text" class="calcpad-blocks__construct-text">{{ item.text }}</code>
                         <span class="calcpad-blocks__construct-location">{{ displayLocation(item) }}</span>
                         <span class="calcpad-blocks__construct-status">
-                            {{ item.mappingStatus === 'verified' ? 'Source mapped' : item.mappingStatus }}
+                            {{ item.mappingStatus === 'mapped' ? 'Source mapped' : item.mappingStatus }}
+                            · {{ freshnessOf(item) }} revision
+                            · {{ item.contentVerification }}
                             · {{ item.editable ? 'Editable source' : 'Read only' }}
                         </span>
                     </button>
@@ -206,6 +336,13 @@ function openSource(item: BoundHighlighterConstruct): void {
                         @click="openSource(item)"
                     >Open source ↗</button>
                 </article>
+
+                <button
+                    v-if="hasMoreConstructs"
+                    type="button"
+                    class="calcpad-blocks__load-more"
+                    @click="showMoreConstructs"
+                >Show 200 more ({{ filteredConstructs.length - visibleConstructs.length }} remaining)</button>
 
                 <section
                     v-if="selectedConstruct"
@@ -222,6 +359,8 @@ function openSource(item: BoundHighlighterConstruct): void {
                         <div><dt>Origin</dt><dd>{{ selectedConstruct.origin }}</dd></div>
                         <div><dt>Raw origin</dt><dd>{{ selectedConstruct.rawOrigin }}</dd></div>
                         <div><dt>Mapping</dt><dd>{{ selectedConstruct.mappingStatus }}</dd></div>
+                        <div><dt>Freshness</dt><dd>{{ freshnessOf(selectedConstruct) }}</dd></div>
+                        <div><dt>Content verification</dt><dd>{{ selectedConstruct.contentVerification }}</dd></div>
                         <div><dt>Source range</dt><dd>{{ displayRange(selectedConstruct.source) }}</dd></div>
                         <div><dt>Highlighter locator</dt><dd>{{ selectedConstruct.sourceLocator ?? 'Unavailable' }}</dd></div>
                         <div><dt>Span role</dt><dd>{{ selectedConstruct.spanRole }}</dd></div>
@@ -314,6 +453,7 @@ function openSource(item: BoundHighlighterConstruct): void {
     margin: 0;
     padding: 14px;
     overflow: auto;
+    outline-offset: -2px;
     white-space: pre;
     tab-size: 4;
     font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -329,6 +469,15 @@ function openSource(item: BoundHighlighterConstruct): void {
     background: var(--calcpad-blocks-background, #fff);
     border: 1px solid var(--calcpad-blocks-border, #d8dee4);
     border-radius: 6px;
+}
+.calcpad-blocks__source pre:focus-visible {
+    outline: 2px solid var(--calcpad-blocks-accent, #3977c3);
+}
+.calcpad-blocks__source-line { display: block; min-height: 1.6em; }
+.calcpad-blocks__source-line mark {
+    color: inherit;
+    background: var(--calcpad-blocks-selected, #dceaff);
+    outline: 1px solid var(--calcpad-blocks-accent, #3977c3);
 }
 .calcpad-blocks__search input {
     width: 100%;
@@ -375,6 +524,21 @@ function openSource(item: BoundHighlighterConstruct): void {
     font-size: 11px;
 }
 .calcpad-blocks__constructs { gap: 6px; padding-bottom: 10px; }
+.calcpad-blocks__load-more {
+    align-self: center;
+    margin: 8px;
+    padding: 6px 10px;
+    color: var(--calcpad-blocks-accent, #245ea8);
+    background: transparent;
+    border: 1px solid var(--calcpad-blocks-border, #d8dee4);
+    border-radius: 5px;
+    cursor: pointer;
+    font: inherit;
+}
+.calcpad-blocks__load-more:focus-visible {
+    outline: 2px solid var(--calcpad-blocks-accent, #3977c3);
+    outline-offset: 2px;
+}
 .calcpad-blocks__construct {
     display: flex;
     flex-direction: column;

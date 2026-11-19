@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "vue-tsc --declaration --emitDeclarationOnly --noEmit false --outDir dist/types && vite build",
-    "test": "tsx --test tests/core/source-range.test.ts tests/contracts/highlighter-contract.test.ts tests/integrations/highlighter-tokens.test.ts",
+    "test": "tsx --test tests/core/source-range.test.ts tests/contracts/highlighter-contract.test.ts tests/snapshot-session.spec.ts tests/integrations/highlighter-tokens.test.ts",
     "typecheck": "vue-tsc --noEmit",
     "dev": "vite --host 127.0.0.1"
   },

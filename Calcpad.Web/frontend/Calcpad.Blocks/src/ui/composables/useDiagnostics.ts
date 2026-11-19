@@ -1,10 +1,12 @@
-import { computed, type ComputedRef, type Ref } from 'vue';
+import { computed, type Ref } from 'vue';
 import type { BlocksHighlighterProjection, ProjectionDiagnostic } from '../../integrations/calcpad';
 
-type SessionSource = BlocksHighlighterProjection | ComputedRef<BlocksHighlighterProjection> | Ref<BlocksHighlighterProjection>;
+type SessionSource = BlocksHighlighterProjection | Readonly<Ref<BlocksHighlighterProjection>>;
 
 function readSession(source: SessionSource): BlocksHighlighterProjection {
-    return 'value' in source ? source.value : source;
+    return 'value' in source
+        ? (source as Readonly<Ref<BlocksHighlighterProjection>>).value
+        : source as BlocksHighlighterProjection;
 }
 
 export function useDiagnostics(session: SessionSource) {

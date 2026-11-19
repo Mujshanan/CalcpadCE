@@ -1,268 +1,260 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import CalcpadBlocksWorkbench from '../src/ui/CalcpadBlocksWorkbench.vue';
-import {
-    adaptHighlighterOutput,
-    createHighlighterSourceSnapshotSession,
-    type HighlighterStructuralOutput,
-} from '../src/integrations/calcpad/highlighter-contract';
-import type {
-    SourceBufferSnapshot,
-    SourceFileId,
-    SourceReference,
-    SourceSnapshotProvider,
-} from '../src/core/source/contracts';
+import CalcpadMonacoEditor from '../src/ui/CalcpadMonacoEditor.vue';
+import { demoExamples, type DemoExample } from './examples';
 
-// Representative, editable-in-source CalcpadCE worksheet text based on the
-// official Getting Started, Programming, Includes, and Matrix examples.
-// The current sandbox still supplies mock Highlighter output; it does not run
-// the CalcpadCE parser or calculation engine.
-const rootText = `'CalcpadCE Blocks demo — language feature tour
-"Simply Supported Beam — Worksheet Examples
-#include beam-library.cpd
-
-'Beam inputs and reusable macros:
-span = 6 m
-w = 12 kN/m
-Vmax = beamShear$(w; span)
-Mmax = beamMoment$(w; span)
-
-"User-defined function
-f(x) = x^2 - 3*x + 4
-f(0.75)
-f(1.25)
-
-"Matrix and vector examples
-A = [1; 2; 3|4; 5; 6]
-B = [6; 5|4; 3|2; 1]
-C = A*B
-
-"Matrix initialization and indexing
-v = [1; 2; 4]
-D = [v|2*v + 1|3*v + 2]
-D.(2; 2)
-
-"Conditional execution
-#if Mmax > 0
-status = "Positive bending moment"
-#else
-status = "Check load direction"
-#end if
-
-"Loop example
-#for i = 1 : 3
-    w_i = w*i
-#loop
-`;
-
-const includedText = `'Shared beam formulas — included by worksheet.cpd
-#def beamMoment$(w$; L$)
-    w$*L$^2/8
-#end def
-
-#def beamShear$(w$; L$)
-    w$*L$/2
-#end def
-`;
-
-const rootSnapshot: SourceBufferSnapshot = Object.freeze({
-    fileId: 'demo:worksheet',
-    revision: 'demo-r2',
-    text: rootText,
-    writable: true,
-});
-
-const includedSnapshot: SourceBufferSnapshot = Object.freeze({
-    fileId: 'demo:beam-library',
-    revision: 'beam-library-r1',
-    text: includedText,
-    writable: true,
-});
-
-const sourceSnapshots = new Map<SourceFileId, SourceBufferSnapshot>([
-    [rootSnapshot.fileId, rootSnapshot],
-    [includedSnapshot.fileId, includedSnapshot],
-]);
-
-const snapshotProvider: SourceSnapshotProvider = {
-    getSnapshot(fileId) {
-        return sourceSnapshots.get(fileId);
-    },
-};
-
-function sourceRange(file: string, text: string, line: number) {
-    const lineText = text.split('\\n')[line] ?? '';
-    return {
-        file,
-        startLine: line,
-        startColumn: 0,
-        endLine: line,
-        endColumn: lineText.length,
-    };
+interface HighlightToken {
+    readonly line: number;
+    readonly column: number;
+    readonly length: number;
+    readonly type: string;
+    readonly typeId: number;
+    readonly text?: string;
 }
 
-function rootConstruct(line: number, kind: number, extra: Record<string, unknown> = {}) {
-    const text = rootText.split('\\n')[line] ?? '';
-    return {
-        kind,
-        range: sourceRange('worksheet.calcpad', rootText, line),
-        text,
-        origin: 0,
-        ...extra,
-    };
+interface MonacoEditorHandle {
+    revealRange(line: number, column: number, length: number): void;
 }
 
-function includedConstruct(line: number, kind: number, extra: Record<string, unknown> = {}) {
-    const text = includedText.split('\\n')[line] ?? '';
-    return {
-        kind,
-        range: sourceRange('/includes/beam-library.cpd', includedText, line),
-        text,
-        origin: 1,
-        ...extra,
-    };
-}
-
-const highlighterOutput: HighlighterStructuralOutput = {
-    constructs: [
-        rootConstruct(0, 0),
-        rootConstruct(1, 0),
-        rootConstruct(2, 11, { name: 'beam-library.cpd' }),
-        rootConstruct(4, 0),
-        rootConstruct(5, 2, { name: 'span' }),
-        rootConstruct(6, 2, { name: 'w' }),
-        rootConstruct(7, 5, { name: 'beamShear$' }),
-        rootConstruct(8, 5, { name: 'beamMoment$' }),
-        rootConstruct(10, 0),
-        rootConstruct(11, 15),
-        rootConstruct(12, 5, { name: 'f' }),
-        rootConstruct(13, 5, { name: 'f' }),
-        rootConstruct(15, 0),
-        rootConstruct(16, 2, { name: 'A' }),
-        rootConstruct(17, 2, { name: 'B' }),
-        rootConstruct(18, 2, { name: 'C' }),
-        rootConstruct(20, 0),
-        rootConstruct(21, 2, { name: 'v' }),
-        rootConstruct(22, 2, { name: 'D' }),
-        rootConstruct(23, 15),
-        rootConstruct(25, 0),
-        rootConstruct(26, 15),
-        rootConstruct(27, 2, { name: 'status' }),
-        rootConstruct(28, 15),
-        rootConstruct(29, 2, { name: 'status' }),
-        rootConstruct(30, 15),
-        rootConstruct(32, 0),
-        rootConstruct(33, 15),
-        rootConstruct(34, 2, { name: 'w_i' }),
-        rootConstruct(35, 15),
-        includedConstruct(0, 0),
-        includedConstruct(1, 4, { name: 'beamMoment$' }),
-        includedConstruct(2, 15),
-        includedConstruct(3, 15),
-        includedConstruct(4, 4, { name: 'beamShear$' }),
-        includedConstruct(5, 15),
-        includedConstruct(6, 15),
-        {
-            kind: 10,
-            range: null,
-            text: 'Generated preview output (no source range)',
-            origin: 3,
-        },
-    ],
-};
-
-const sourceSession = createHighlighterSourceSnapshotSession(
-    rootSnapshot,
-    'worksheet.calcpad',
-    snapshotProvider,
-    (locator) => {
-        if (locator === '/includes/beam-library.cpd') {
-            return { fileId: includedSnapshot.fileId, locator };
-        }
-        return undefined;
-    },
+const selectedExampleId = ref(demoExamples[0].id);
+const selectedExample = computed<DemoExample>(() =>
+    demoExamples.find((example) => example.id === selectedExampleId.value) ?? demoExamples[0],
 );
+const activeFile = ref<'root' | 'dependency'>('root');
+const rootDraft = ref(selectedExample.value.content);
+const dependencyDraft = ref(selectedExample.value.dependency?.content ?? '');
+const sourceText = ref(rootDraft.value);
+const apiBaseUrl = ref('http://127.0.0.1:9420');
+const apiToken = ref('');
+const serverSourceFilePath = ref('');
+const tokens = ref<readonly HighlightToken[]>([]);
+const selectedTokenIndex = ref<number | null>(null);
+const highlightStatus = ref('Waiting for the local Calcpad server.');
+const highlightOk = ref(false);
+const editorRef = ref<MonacoEditorHandle>();
 
-const projection = adaptHighlighterOutput(highlighterOutput, sourceSession);
-const selectedIndex = ref<number | null>(0);
-const lastHostAction = ref('No host action yet');
-const selectedConstruct = computed(() =>
-    projection.constructs.find((item) => item.projectionIndex === selectedIndex.value),
+const hasDependency = computed(() => Boolean(selectedExample.value.dependency));
+const sourceFileTitle = computed(() =>
+    activeFile.value === 'root'
+        ? selectedExample.value.title + '.cpd'
+        : selectedExample.value.dependency?.title ?? 'Included source',
 );
+const activeServerPath = computed(() =>
+    activeFile.value === 'root' ? serverSourceFilePath.value : '',
+);
+const sourceLines = computed(() => sourceText.value.split(/\r?\n/));
 
-function onSelect(projectionIndex: number): void {
-    selectedIndex.value = projectionIndex;
-    lastHostAction.value = `Host received select(${projectionIndex}).`;
+function selectExample(id: string): void {
+    const example = demoExamples.find((item) => item.id === id);
+    if (!example) return;
+    selectedExampleId.value = id;
+    activeFile.value = 'root';
+    rootDraft.value = example.content;
+    dependencyDraft.value = example.dependency?.content ?? '';
+    sourceText.value = rootDraft.value;
+    tokens.value = [];
+    selectedTokenIndex.value = null;
+    highlightStatus.value = 'Example loaded. Waiting for Highlighter.';
+    highlightOk.value = false;
+    serverSourceFilePath.value = '';
 }
 
-function onOpenSource(reference: SourceReference): void {
-    const fileLabel = reference.fileId === rootSnapshot.fileId
-        ? 'worksheet.calcpad'
-        : 'beam-library.cpd';
-    const { startLine, startColumn, endLine, endColumn } = reference.range;
-    lastHostAction.value =
-        `Host received reveal/select request for ${fileLabel}, ` +
-        `revision ${reference.revision}, ${startLine + 1}:${startColumn + 1}–${endLine + 1}:${endColumn + 1}.`;
-    const matching = projection.constructs.find((item) =>
-        item.source?.fileId === reference.fileId &&
-        item.source?.range.startLine === startLine &&
-        item.source?.range.startColumn === startColumn,
-    );
-    if (matching) selectedIndex.value = matching.projectionIndex;
+function selectFile(file: 'root' | 'dependency'): void {
+    if (file === 'dependency' && !hasDependency.value) return;
+    if (activeFile.value === 'root') rootDraft.value = sourceText.value;
+    else dependencyDraft.value = sourceText.value;
+    activeFile.value = file;
+    sourceText.value = file === 'root' ? rootDraft.value : dependencyDraft.value;
+    tokens.value = [];
+    selectedTokenIndex.value = null;
+    highlightStatus.value = 'Source tab changed. Waiting for Highlighter.';
+    highlightOk.value = false;
+}
+
+function updateSource(value: string): void {
+    sourceText.value = value;
+    if (activeFile.value === 'root') rootDraft.value = value;
+    else dependencyDraft.value = value;
+}
+
+function tokenText(token: HighlightToken): string {
+    if (token.text !== undefined) return token.text;
+    return sourceLines.value[token.line]?.slice(token.column, token.column + token.length) ?? '';
+}
+
+function tokenLocation(token: HighlightToken): string {
+    return `${token.line + 1}:${token.column + 1}`;
+}
+
+function selectToken(index: number): void {
+    selectedTokenIndex.value = index;
+}
+
+function openToken(index: number): void {
+    const token = tokens.value[index];
+    if (!token) return;
+    selectedTokenIndex.value = index;
+    editorRef.value?.revealRange(token.line, token.column, token.length);
+}
+
+function onHighlighted(value: readonly HighlightToken[]): void {
+    tokens.value = value;
+    if (selectedTokenIndex.value !== null && selectedTokenIndex.value >= value.length) {
+        selectedTokenIndex.value = null;
+    }
+}
+
+function onHighlightStatus(message: string, ok: boolean): void {
+    highlightStatus.value = message;
+    highlightOk.value = ok;
 }
 </script>
 
 <template>
-    <main class="demo-shell">
+    <main class="demo-shell demo-shell--source">
         <header class="demo-header">
             <div>
-                <p class="eyebrow">CALCPADCE · BLOCKS UI SANDBOX</p>
-                <h1>Source-backed worksheet workbench</h1>
+                <p class="eyebrow">CALCPADCE · BLOCKS INTEGRATION SANDBOX</p>
+                <h1>Source-first worksheet workbench</h1>
                 <p class="intro">
-                    A feature-tour worksheet with definitions, includes, functions,
-                    matrices, conditionals, loops, and engineering calculations.
+                    Genuine upstream worksheets, editable Monaco source, and live lexical
+                    highlighting from the CalcpadCE server. Source remains authoritative.
                 </p>
             </div>
-            <div class="demo-status">
+            <div class="demo-status" :class="{ 'is-connected': highlightOk }">
                 <span class="status-dot"></span>
-                Mock host · no calculation backend
+                {{ highlightOk ? 'Real Highlighter connected' : 'Highlighter not connected' }}
             </div>
         </header>
 
-        <section class="demo-meta" aria-label="Demo information">
-            <div><span>Root source</span><strong>worksheet.calcpad</strong></div>
-            <div><span>Root revision</span><strong>{{ rootSnapshot.revision }}</strong></div>
-            <div><span>Included source</span><strong>beam-library.cpd</strong></div>
-            <div><span>Projection</span><strong>v{{ projection.contractVersion }}</strong></div>
+        <section class="catalogue-panel" aria-label="Upstream example catalogue">
+            <div class="catalogue-heading">
+                <div>
+                    <p class="eyebrow">UPSTREAM EXAMPLES</p>
+                    <h2>Worksheet catalogue</h2>
+                </div>
+                <label class="example-picker">
+                    <span>Open example</span>
+                    <select :value="selectedExampleId" @change="selectExample(($event.target as HTMLSelectElement).value)">
+                        <optgroup label="3D, Plotting, Drawing">
+                            <option value="parametric-svg">Parametric SVG Generation</option>
+                        </optgroup>
+                        <optgroup label="Matrices">
+                            <option value="matrix-indexing">Matrix Initialization and Indexing</option>
+                            <option value="matrix-functions">Matrix Math Functions</option>
+                        </optgroup>
+                    </select>
+                </label>
+            </div>
+            <div class="example-provenance">
+                <span>{{ selectedExample.category }}</span>
+                <span>Source: {{ selectedExample.upstreamPath }}</span>
+                <a
+                    :href="'https://github.com/imartincei/CalcpadCE/blob/main/' + encodeURI(selectedExample.upstreamPath).replaceAll('%2F', '/')"
+                    target="_blank"
+                    rel="noreferrer"
+                >View upstream file ↗</a>
+            </div>
         </section>
 
-        <CalcpadBlocksWorkbench
-            document-label="CalcpadCE feature tour · beam and matrix examples"
-            :revision="rootSnapshot.revision"
-            :source-text="rootSnapshot.text"
-            :constructs="projection.constructs"
-            :selected-index="selectedIndex"
-            @select="onSelect"
-            @open-source="onOpenSource"
-        />
+        <section class="connection-panel" aria-label="Calcpad server connection">
+            <label>
+                <span>Calcpad server base URL</span>
+                <input v-model="apiBaseUrl" type="url" placeholder="http://127.0.0.1:9420" />
+            </label>
+            <label>
+                <span>API token (if enabled)</span>
+                <input v-model="apiToken" type="password" autocomplete="off" placeholder="Optional X-Calcpad-Token" />
+            </label>
+            <label class="source-path-field">
+                <span>Server-side root source path (optional; enables #include resolution)</span>
+                <input
+                    v-model="serverSourceFilePath"
+                    type="text"
+                    :disabled="activeFile !== 'root'"
+                    placeholder="Absolute path visible to the Calcpad server"
+                />
+            </label>
+        </section>
 
-        <section class="host-panel" aria-label="Mock host event log">
-            <div>
-                <p class="eyebrow">HOST INTEGRATION PREVIEW</p>
-                <h2>Last host callback</h2>
-                <p>{{ lastHostAction }}</p>
+        <section class="workspace-panel" aria-label="Editable source and real Highlighter output">
+            <div class="workspace-heading">
+                <div class="source-tabs">
+                    <button
+                        type="button"
+                        :class="{ active: activeFile === 'root' }"
+                        @click="selectFile('root')"
+                    >{{ selectedExample.title }}.cpd</button>
+                    <button
+                        v-if="hasDependency"
+                        type="button"
+                        :class="{ active: activeFile === 'dependency' }"
+                        @click="selectFile('dependency')"
+                    >{{ selectedExample.dependency?.title }}</button>
+                </div>
+                <span class="source-authority">Editable source · in-memory draft</span>
             </div>
-            <div class="host-selection">
-                <span>Selected item</span>
-                <strong>{{ selectedConstruct?.name || selectedConstruct?.kind || 'None' }}</strong>
-                <span>{{ selectedConstruct?.mappingStatus || 'No selection' }}</span>
+
+            <div class="workspace-grid">
+                <section class="editor-column">
+                    <div class="pane-heading">
+                        <strong>{{ sourceFileTitle }}</strong>
+                        <span>{{ sourceText.length.toLocaleString() }} characters</span>
+                    </div>
+                    <CalcpadMonacoEditor
+                        ref="editorRef"
+                        :model-value="sourceText"
+                        :api-base-url="apiBaseUrl"
+                        :api-token="apiToken"
+                        :source-file-path="activeServerPath"
+                        @update:model-value="updateSource"
+                        @highlighted="onHighlighted"
+                        @highlight-status="onHighlightStatus"
+                    />
+                    <p v-if="activeFile === 'root' && selectedExample.dependency && !serverSourceFilePath" class="include-note">
+                        This worksheet includes <code>svg_drawing.cpd</code>. To resolve that include
+                        on the server, set a root source path whose directory also contains the
+                        dependency. The browser fixture tab alone is not a server-side file.
+                    </p>
+                </section>
+
+                <aside class="tokens-column">
+                    <div class="pane-heading">
+                        <strong>Real Highlighter tokens</strong>
+                        <span>{{ tokens.length.toLocaleString() }} tokens</span>
+                    </div>
+                    <div class="highlight-status" :class="{ success: highlightOk }" role="status">
+                        {{ highlightStatus }}
+                    </div>
+                    <p v-if="tokens.length === 0" class="token-empty">
+                        Connect the local Calcpad server to populate this list from
+                        <code>POST /api/calcpad/highlight</code>.
+                    </p>
+                    <div v-else class="token-list">
+                        <button
+                            v-for="(token, index) in tokens"
+                            :key="index"
+                            type="button"
+                            class="token-row"
+                            :class="{ selected: selectedTokenIndex === index }"
+                            @click="selectToken(index)"
+                            @dblclick="openToken(index)"
+                        >
+                            <span class="token-type">{{ token.type }}</span>
+                            <code class="token-text">{{ tokenText(token) }}</code>
+                            <span class="token-location">{{ tokenLocation(token) }}</span>
+                        </button>
+                    </div>
+                    <p class="token-hint">Single-click selects a token; double-click reveals its exact source range in Monaco.</p>
+                </aside>
             </div>
         </section>
 
-        <p class="demo-note">
-            The worksheet text and included library use CalcpadCE syntax. The current
-            sandbox still uses representative mock Highlighter output, so it does not
-            execute the calculations or refresh the projection after source edits.
-        </p>
+        <footer class="integration-note">
+            <strong>Scope boundary:</strong> <code>/highlight</code> returns lexical tokens, not
+            worksheet statement/block structures. This view does not invent block boundaries from
+            tokens. Structural projection and BlockNote-style visual blocks remain a separate
+            integration milestone until CalcpadCE exposes a genuine structural result.
+        </footer>
     </main>
 </template>

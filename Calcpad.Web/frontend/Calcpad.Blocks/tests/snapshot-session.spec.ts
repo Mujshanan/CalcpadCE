@@ -254,3 +254,35 @@ test('returns frozen manifest snapshots with the root entry and resolved failure
     assert.equal(byLocator.get('ok.cpd')?.status, 'captured');
     assert.equal(byLocator.get('missing.cpd')?.status, 'bufferUnavailable');
 });
+
+test('copies and freezes included snapshots so later host mutation cannot alter the session', () => {
+    const included = snapshot('include', 'captured source', 'r4');
+    const provider = recordingProvider([included]);
+    const session = createHighlighterSourceSnapshotSession(
+        snapshot('root', 'root source'),
+        'root.cpd',
+        provider,
+        resolver({ 'include.cpd': 'include' }),
+    );
+
+    const captured = session.getSnapshotForHighlighterFile('include.cpd');
+    (included as { text: string }).text = 'mutated host object';
+
+    assert.equal(captured?.text, 'captured source');
+    assert.ok(Object.isFrozen(captured));
+    assert.equal(session.tryGetSource('include.cpd'), 'captured source');
+});
+
+test('deduplicates a missing-buffer result across aliases of the same host identity', () => {
+    const provider = recordingProvider();
+    const session = createHighlighterSourceSnapshotSession(
+        snapshot('root', 'root source'),
+        'root.cpd',
+        provider,
+        resolver({ 'a.cpd': 'missing', 'b.cpd': 'missing' }),
+    );
+
+    assert.equal(session.resolveHighlighterFile('a.cpd').status, 'bufferUnavailable');
+    assert.equal(session.resolveHighlighterFile('b.cpd').status, 'bufferUnavailable');
+    assert.deepEqual(provider.calls, ['missing']);
+});

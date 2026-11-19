@@ -6,6 +6,9 @@ on:
       - "hbc-m3/**"
     paths:
       - "Calcpad.Web/frontend/Calcpad.Blocks/**"
+      - "Calcpad.Highlighter/ContentResolution/StructuralOutput*.cs"
+      - "Calcpad.Tests/Highlighter/**"
+      - "global.json"
       - ".github/workflows/hbc-m3-validation.yml"
   pull_request:
     paths:

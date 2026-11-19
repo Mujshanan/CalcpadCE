@@ -61,32 +61,8 @@ const originNames: readonly SourceOrigin[] = [
     'Unknown',
 ];
 
-const knownKinds = new Set<string>([
-    'Comment',
-    'HtmlOrMarkdownContent',
-    'VariableDefinition',
-    'VariableReassignment',
-    'FunctionDefinition',
-    'FunctionCall',
-    'MacroDefinition',
-    'MacroCall',
-    'CustomUnitDefinition',
-    'ControlFlowDirective',
-    'Command',
-    'IncludeDirective',
-    'DataExchangeDirective',
-    'InputDirective',
-    'SettingsDirective',
-    'MathematicalExpression',
-]);
-
-const knownOrigins = new Set<string>([
-    'Local',
-    'IncludedFile',
-    'MacroExpansion',
-    'Generated',
-    'Unknown',
-]);
+const knownKinds = new Set<string>(kindNames);
+const knownOrigins = new Set<string>(originNames);
 
 /**
  * Current ASP.NET Core MVC JSON uses System.Text.Json web defaults and does not
@@ -118,7 +94,7 @@ export interface HighlighterStructuralOutput {
 }
 
 export type ConstructMappingStatus =
-    | 'verified'
+    | 'mapped'
     | 'unmapped'
     | 'identityUnavailable'
     | 'bufferUnavailable'
@@ -126,6 +102,11 @@ export type ConstructMappingStatus =
     | 'invalidRange';
 
 export type HighlighterSpanRole = 'unknown';
+export type ContentVerificationStatus =
+    | 'matched'
+    | 'mismatched'
+    | 'notComparable'
+    | 'notApplicable';
 
 export interface HighlighterSourceIdentity {
     /** Stable identity issued and owned by the host editor. */
@@ -321,8 +302,9 @@ export interface BoundHighlighterConstruct {
     /** Highlighter does not currently expose a reliable semantic span role. */
     readonly spanRole: HighlighterSpanRole;
     readonly mapping: ConstructMappingStatus;
-    /** Explicitly named equivalent for new consumers. */
     readonly mappingStatus: ConstructMappingStatus;
+    /** Exact source-slice comparison; no trimming or normalization is applied. */
+    readonly contentVerification: ContentVerificationStatus;
     /** Range normalized to the host-owned file identity. */
     readonly source?: SourceReference;
     readonly editable: boolean;
@@ -334,7 +316,8 @@ export interface HighlighterContractDiagnostic {
         | 'source-identity-unavailable'
         | 'source-buffer-unavailable'
         | 'source-identity-mismatch'
-        | 'source-range-invalid';
+        | 'source-range-invalid'
+        | 'source-content-mismatch';
     readonly projectionIndex: number;
     readonly sourceLocator?: string;
 }
@@ -381,8 +364,8 @@ export function adaptHighlighterOutput(
             diagnostics.push({ code: 'range-unavailable', projectionIndex });
             return {
                 ...common,
-                mapping: 'unmapped',
                 mappingStatus: 'unmapped',
+                contentVerification: 'notComparable',
                 editable: false,
             };
         }
@@ -406,8 +389,8 @@ export function adaptHighlighterOutput(
             });
             return {
                 ...common,
-                mapping,
                 mappingStatus: mapping,
+                contentVerification: 'notComparable',
                 editable: false,
             };
         }
@@ -421,8 +404,8 @@ export function adaptHighlighterOutput(
             });
             return {
                 ...common,
-                mapping: 'invalidRange',
                 mappingStatus: 'invalidRange',
+                contentVerification: 'notComparable',
                 editable: false,
             };
         }
@@ -438,13 +421,32 @@ export function adaptHighlighterOutput(
             range: normalizedRange,
             origin,
         });
+        const sourceSlice = snapshot.text.slice(offsets.start, offsets.end);
+        const contentVerification: ContentVerificationStatus =
+            origin === 'Local' || origin === 'IncludedFile'
+                ? construct.text === null
+                    ? 'notComparable'
+                    : sourceSlice === construct.text
+                        ? 'matched'
+                        : 'mismatched'
+                : 'notApplicable';
+
+        if (contentVerification === 'mismatched') {
+            diagnostics.push({
+                code: 'source-content-mismatch',
+                projectionIndex,
+                sourceLocator: rawRange.file,
+            });
+        }
 
         return {
             ...common,
-            mapping: 'verified',
-            mappingStatus: 'verified',
+            mappingStatus: 'mapped',
+            contentVerification,
             source,
-            editable: canEditSource(origin, snapshot),
+            // A range that does not reproduce the Highlighter text is not safe
+            // to expose as an editable source target.
+            editable: contentVerification !== 'mismatched' && canEditSource(origin, snapshot),
         };
     });
 

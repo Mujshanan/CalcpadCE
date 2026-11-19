@@ -18,9 +18,18 @@ The adapter does not change Calcpad.Highlighter. It preserves the existing flat 
 
 The workbench remains a read-only inspection surface, not yet the final nested visual worksheet editor. It does not invent semantic block boundaries or nesting, and source edits remain the host editor's responsibility.
 
-## Development
+## Run the standalone workbench
 
-Run `npm install`, `npm test`, `npm run typecheck`, and `npm run build` from this directory.
+The package includes a small demo host with mock root/include source snapshots and representative Highlighter output. It exercises the adapter and the read-only workbench without requiring the Calcpad web application or a live Highlighter service.
+
+```powershell
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite (normally `http://127.0.0.1:5173`). Try the construct search, the kind/origin/mapping filters, selecting constructs, and the source-navigation actions. The demo reports host callbacks in its event panel; it does not edit source.
+
+To validate the package separately, run `npm test`, `npm run typecheck`, and `npm run build` from this directory.
 
 Vue is a peer dependency. The package is not yet wired into calcpad-web; that integration follows after the source contracts and Highlighter projection shape are validated.
 

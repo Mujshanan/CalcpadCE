@@ -14,27 +14,89 @@ import { sourceRangeToOffsets } from '../../core/source/range';
 export const BLOCKS_HIGHLIGHTER_CONTRACT_ID = 'calcpad.highlighter-to-blocks' as const;
 export const BLOCKS_HIGHLIGHTER_CONTRACT_VERSION = 1 as const;
 
+/**
+ * Ordinal table copied from:
+ * Calcpad.Highlighter/ContentResolution/StructuralOutput.cs,
+ * enum StructuralConstructKind (Mujshanan/CalcpadCE,
+ * feature/calcpad-blocks-foundation).
+ *
+ * The C# enum declares no explicit numeric values, so its underlying Int32 values
+ * are zero-based and follow declaration order. Keep this table in exact lockstep
+ * with that enum; update it only with a reviewed upstream enum change.
+ */
 export const HIGHLIGHTER_CONSTRUCT_KINDS = [
-    'Comment', 'HtmlOrMarkdownContent', 'VariableDefinition', 'VariableReassignment',
-    'FunctionDefinition', 'FunctionCall', 'MacroDefinition', 'MacroCall',
-    'CustomUnitDefinition', 'ControlFlowDirective', 'Command', 'IncludeDirective',
-    'DataExchangeDirective', 'InputDirective', 'SettingsDirective', 'MathematicalExpression',
+    'Comment',
+    'HtmlOrMarkdownContent',
+    'VariableDefinition',
+    'VariableReassignment',
+    'FunctionDefinition',
+    'FunctionCall',
+    'MacroDefinition',
+    'MacroCall',
+    'CustomUnitDefinition',
+    'ControlFlowDirective',
+    'Command',
+    'IncludeDirective',
+    'DataExchangeDirective',
+    'InputDirective',
+    'SettingsDirective',
+    'MathematicalExpression',
 ] as const;
+
+export const HIGHLIGHTER_CONSTRUCT_KIND_COUNT = HIGHLIGHTER_CONSTRUCT_KINDS.length;
+
+/**
+ * Ordinal table copied from:
+ * Calcpad.Highlighter/ContentResolution/StructuralOutput.cs,
+ * enum SourceOrigin (same repository/ref as the construct-kind table).
+ * The C# enum has implicit zero-based values in declaration order.
+ */
+export const HIGHLIGHTER_SOURCE_ORIGINS = [
+    'Local',
+    'IncludedFile',
+    'MacroExpansion',
+    'Generated',
+    'Unknown',
+] as const;
+
+export const HIGHLIGHTER_SOURCE_ORIGIN_COUNT = HIGHLIGHTER_SOURCE_ORIGINS.length;
 
 export type HighlighterConstructKind = typeof HIGHLIGHTER_CONSTRUCT_KINDS[number];
 export type HighlighterOrigin = SourceOrigin;
+export type HighlighterEnumValue = string | number;
 
 const knownKinds = new Set<string>(HIGHLIGHTER_CONSTRUCT_KINDS);
-const knownOrigins = new Set<string>([
-    'Local', 'IncludedFile', 'MacroExpansion', 'Generated', 'Unknown',
-]);
+const knownOrigins = new Set<string>(HIGHLIGHTER_SOURCE_ORIGINS);
 
-/** Wire shape currently serialized from Calcpad.Highlighter.StructuralOutput. */
+type EnumResolution<T extends string> =
+    | { readonly status: 'known'; readonly value: T }
+    | { readonly status: 'unknown'; readonly reason: 'ordinal' | 'name' };
+
+function resolveOrdinalOrName<T extends string>(
+    raw: HighlighterEnumValue,
+    ordinalTable: readonly T[],
+    knownNames: ReadonlySet<string>,
+): EnumResolution<T> {
+    if (typeof raw === 'number') {
+        if (Number.isInteger(raw) && raw >= 0 && raw < ordinalTable.length) {
+            return { status: 'known', value: ordinalTable[raw] };
+        }
+        return { status: 'unknown', reason: 'ordinal' };
+    }
+
+    if (knownNames.has(raw)) {
+        return { status: 'known', value: raw as T };
+    }
+    return { status: 'unknown', reason: 'name' };
+}
+
+/** Wire shape serialized from Calcpad.Highlighter.StructuralOutput. */
 export interface HighlighterStructuralConstruct {
-    readonly kind: string;
+    /** .NET enum JSON values may be numeric ordinals or configured string names. */
+    readonly kind: HighlighterEnumValue;
     readonly range: SourceRange | null;
     readonly text: string | null;
-    readonly origin: string;
+    readonly origin: HighlighterEnumValue;
     readonly name?: string | null;
 }
 
@@ -51,6 +113,8 @@ export type ConstructMappingStatus =
     | 'sourceIdentityUnresolved';
 
 export type ConstructSpanRole = 'token' | 'line' | 'construct' | 'unknown';
+
+export type EnumValueStatus = 'known' | 'unknown';
 
 /**
  * The host supplies an explicit mapping from Highlighter's file locator (often a
@@ -82,11 +146,13 @@ export interface BoundHighlighterConstruct {
     readonly projectionIndex: number;
     /** Known kind when recognized; unknown future values are preserved in rawKind. */
     readonly kind: HighlighterConstructKind | 'Unknown';
-    readonly rawKind: string;
+    readonly kindStatus: EnumValueStatus;
+    readonly rawKind: HighlighterEnumValue;
     readonly text: string | null;
     readonly name?: string | null;
     readonly origin: SourceOrigin;
-    readonly rawOrigin: string;
+    readonly originStatus: EnumValueStatus;
+    readonly rawOrigin: HighlighterEnumValue;
     readonly mapping: ConstructMappingStatus;
     /** A valid source range is not necessarily a complete semantic block span. */
     readonly spanRole: ConstructSpanRole;
@@ -104,7 +170,14 @@ export interface BlocksHighlighterCapabilities {
 }
 
 export interface ProjectionDiagnostic {
-    readonly code: 'sourceIdentityUnresolved' | 'bufferUnavailable' | 'invalidRange';
+    readonly code:
+        | 'unknownKindOrdinal'
+        | 'unknownKindName'
+        | 'unknownOriginOrdinal'
+        | 'unknownOriginName'
+        | 'sourceIdentityUnresolved'
+        | 'bufferUnavailable'
+        | 'invalidRange';
     readonly projectionIndex: number;
     readonly message: string;
 }
@@ -116,6 +189,70 @@ export interface BlocksHighlighterProjection {
     readonly sourceManifest: readonly ProjectionSourceManifestEntry[];
     readonly constructs: readonly BoundHighlighterConstruct[];
     readonly diagnostics: readonly ProjectionDiagnostic[];
+}
+
+type SourceResolution =
+    | { readonly status: 'unmapped' }
+    | { readonly status: 'sourceIdentityUnresolved'; readonly message: string }
+    | { readonly status: 'bufferUnavailable'; readonly message: string }
+    | { readonly status: 'invalidRange'; readonly message: string }
+    | { readonly status: 'verified'; readonly source: SourceReference; readonly editable: boolean };
+
+function resolveConstructSource(
+    range: SourceRange | null,
+    origin: SourceOrigin,
+    bindings: ReadonlyMap<string, HighlighterSourceBinding>,
+): SourceResolution {
+    if (!range) return { status: 'unmapped' };
+
+    const binding = bindings.get(range.file);
+    if (!binding) {
+        return {
+            status: 'sourceIdentityUnresolved',
+            message: 'No host file identity is registered for Highlighter locator "' + range.file + '".',
+        };
+    }
+
+    const snapshot = binding.snapshot;
+    if (!snapshot) {
+        return {
+            status: 'bufferUnavailable',
+            message: 'The host snapshot for "' + range.file + '" was not available for this projection.',
+        };
+    }
+
+    if (snapshot.fileId !== binding.fileId) {
+        return {
+            status: 'sourceIdentityUnresolved',
+            message: 'Host snapshot identity "' + snapshot.fileId +
+                '" does not match registered identity "' + binding.fileId + '".',
+        };
+    }
+
+    const hostRange: SourceRange = { ...range, file: snapshot.fileId };
+    if (!sourceRangeToOffsets(snapshot.text, hostRange)) {
+        return {
+            status: 'invalidRange',
+            message: 'Highlighter range for "' + range.file +
+                '" is outside the captured host snapshot.',
+        };
+    }
+
+    const source: SourceReference = {
+        fileId: snapshot.fileId,
+        revision: snapshot.revision,
+        range: hostRange,
+        origin,
+    };
+    return {
+        status: 'verified',
+        source,
+        editable: canEditSource(origin, snapshot),
+    };
+}
+
+function assertNever(value: never): never {
+    throw new Error('Unhandled Highlighter source-resolution status: ' + String(value));
 }
 
 /**
@@ -139,60 +276,71 @@ export function adaptHighlighterOutput(
     const constructs = output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
         const rawKind = construct.kind;
         const rawOrigin = construct.origin;
-        const kind = knownKinds.has(rawKind) ? rawKind as HighlighterConstructKind : 'Unknown';
-        const origin = knownOrigins.has(rawOrigin) ? rawOrigin as SourceOrigin : 'Unknown';
+        const kindResolution = resolveOrdinalOrName(
+            rawKind, HIGHLIGHTER_CONSTRUCT_KINDS, knownKinds,
+        );
+        const originResolution = resolveOrdinalOrName(
+            rawOrigin, HIGHLIGHTER_SOURCE_ORIGINS, knownOrigins,
+        );
+        const kind = kindResolution.status === 'known' ? kindResolution.value : 'Unknown';
+        const origin = originResolution.status === 'known' ? originResolution.value : 'Unknown';
+
+        if (kindResolution.status === 'unknown') {
+            const code = kindResolution.reason === 'ordinal' ? 'unknownKindOrdinal' : 'unknownKindName';
+            diagnostics.push({
+                code,
+                projectionIndex,
+                message: 'Unknown Highlighter construct kind ' + JSON.stringify(rawKind) +
+                    (kindResolution.reason === 'ordinal' ? ' (ordinal).' : ' (name).'),
+            });
+        }
+        if (originResolution.status === 'unknown') {
+            const code = originResolution.reason === 'ordinal' ? 'unknownOriginOrdinal' : 'unknownOriginName';
+            diagnostics.push({
+                code,
+                projectionIndex,
+                message: 'Unknown Highlighter source origin ' + JSON.stringify(rawOrigin) +
+                    (originResolution.reason === 'ordinal' ? ' (ordinal).' : ' (name).'),
+            });
+        }
+
         const base = {
             projectionIndex,
             kind,
+            kindStatus: kindResolution.status,
             rawKind,
             text: construct.text ?? null,
             name: construct.name ?? null,
             origin,
+            originStatus: originResolution.status,
             rawOrigin,
             spanRole: context.spanRoles?.[projectionIndex] ?? 'unknown' as const,
             editable: false,
         };
 
-        const range = construct.range;
-        if (!range) return { ...base, mapping: 'unmapped' };
-
-        const binding = bindings.get(range.file);
-        if (!binding) {
-            diagnostics.push({ code: 'sourceIdentityUnresolved', projectionIndex,
-                message: `No host file identity is registered for Highlighter locator "${range.file}".` });
-            return { ...base, mapping: 'sourceIdentityUnresolved' };
+        const resolution = resolveConstructSource(construct.range, origin, bindings);
+        switch (resolution.status) {
+            case 'unmapped':
+                return { ...base, mapping: 'unmapped' };
+            case 'sourceIdentityUnresolved':
+                diagnostics.push({ code: resolution.status, projectionIndex, message: resolution.message });
+                return { ...base, mapping: resolution.status };
+            case 'bufferUnavailable':
+                diagnostics.push({ code: resolution.status, projectionIndex, message: resolution.message });
+                return { ...base, mapping: resolution.status };
+            case 'invalidRange':
+                diagnostics.push({ code: resolution.status, projectionIndex, message: resolution.message });
+                return { ...base, mapping: resolution.status };
+            case 'verified':
+                return {
+                    ...base,
+                    mapping: 'verified',
+                    source: resolution.source,
+                    editable: resolution.editable,
+                };
+            default:
+                return assertNever(resolution);
         }
-
-        const snapshot = binding.snapshot;
-        if (!snapshot) {
-            diagnostics.push({ code: 'bufferUnavailable', projectionIndex,
-                message: `The host snapshot for "${range.file}" was not available for this projection.` });
-            return { ...base, mapping: 'bufferUnavailable' };
-        }
-        if (snapshot.fileId !== binding.fileId) {
-            diagnostics.push({ code: 'sourceIdentityUnresolved', projectionIndex,
-                message: `Host snapshot identity "${snapshot.fileId}" does not match registered identity "${binding.fileId}".` });
-            return { ...base, mapping: 'sourceIdentityUnresolved' };
-        }
-        const hostRange: SourceRange = { ...range, file: snapshot.fileId };
-        if (!sourceRangeToOffsets(snapshot.text, hostRange)) {
-            diagnostics.push({ code: 'invalidRange', projectionIndex,
-                message: `Highlighter range for "${range.file}" is outside the captured host snapshot.` });
-            return { ...base, mapping: 'invalidRange' };
-        }
-
-        const source: SourceReference = {
-            fileId: snapshot.fileId,
-            revision: snapshot.revision,
-            range: hostRange,
-            origin,
-        };
-        return {
-            ...base,
-            mapping: 'verified',
-            source,
-            editable: canEditSource(origin, snapshot),
-        };
     });
 
     return {

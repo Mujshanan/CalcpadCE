@@ -80,7 +80,14 @@ function revealRange(line: number, column: number, length: number): void {
     editor.focus();
 }
 
-defineExpose({ revealRange });
+function refreshHighlight(): void {
+    const model = editor?.getModel();
+    if (!model) return;
+    monaco.editor.setModelLanguage(model, 'plaintext');
+    monaco.editor.setModelLanguage(model, 'calcpad');
+}
+
+defineExpose({ revealRange, refreshHighlight });
 
 onMounted(() => {
     if (!host.value) return;
@@ -178,6 +185,8 @@ onMounted(() => {
         releaseDocumentSemanticTokens: () => undefined,
     });
 
+    refreshHighlight();
+
     contentSubscription = editor.onDidChangeModelContent(() => {
         const value = editor?.getValue() ?? '';
         emit('update:modelValue', value);
@@ -192,10 +201,7 @@ watch(() => props.readOnly, (value) => editor?.updateOptions({ readOnly: value }
 watch(
     () => [props.apiBaseUrl, props.apiToken, props.sourceFilePath] as const,
     () => {
-        const model = editor?.getModel();
-        if (!model) return;
-        monaco.editor.setModelLanguage(model, 'plaintext');
-        monaco.editor.setModelLanguage(model, 'calcpad');
+        refreshHighlight();
     },
 );
 

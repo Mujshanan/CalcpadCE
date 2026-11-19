@@ -77,6 +77,26 @@ test('does not bind an include path without an explicit host identity mapping', 
     assert.equal(projection.constructs[0].source, undefined);
 });
 
+test('rejects a snapshot whose host identity disagrees with the registered mapping', () => {
+    const output: HighlighterStructuralOutput = {
+        constructs: [{
+            kind: 'VariableDefinition',
+            range: { file: '/resolved/lib.cpd', startLine: 0, startColumn: 0, endLine: 0, endColumn: 1 },
+            text: 'x', origin: 'IncludedFile',
+        }],
+    };
+    const projection = adaptHighlighterOutput(output, {
+        sources: [{
+            sourceLocator: '/resolved/lib.cpd',
+            fileId: 'expected-host-id',
+            snapshot: { fileId: 'different-host-id', revision: 'r1', text: 'x', writable: true },
+        }],
+    });
+    assert.equal(projection.constructs[0].mapping, 'sourceIdentityUnresolved');
+    assert.equal(projection.constructs[0].source, undefined);
+    assert.equal(projection.diagnostics[0].code, 'sourceIdentityUnresolved');
+});
+
 test('keeps generated constructs read-only even with a writable host snapshot', () => {
     const output: HighlighterStructuralOutput = {
         constructs: [{

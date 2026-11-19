@@ -1,0 +1,41 @@
+name: HBC-M3 Blocks validation
+
+on:
+  push:
+    branches:
+      - "hbc-m3/**"
+    paths:
+      - "Calcpad.Web/frontend/Calcpad.Blocks/**"
+      - ".github/workflows/hbc-m3-validation.yml"
+  pull_request:
+    paths:
+      - "Calcpad.Web/frontend/Calcpad.Blocks/**"
+      - ".github/workflows/hbc-m3-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blocks-validation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Calcpad.Web/frontend/Calcpad.Blocks
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Calcpad.Web/frontend/Calcpad.Blocks/package.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run tests
+        run: npm test
+      - name: Type-check
+        run: npm run typecheck
+      - name: Build package
+        run: npm run build

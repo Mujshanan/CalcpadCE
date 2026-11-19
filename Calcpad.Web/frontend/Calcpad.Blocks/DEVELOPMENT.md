@@ -1,14 +1,23 @@
 # Calcpad.Blocks — Development Guide
 
-> Status: initial architecture and development plan  
-> Package location: `Calcpad.Web/frontend/Calcpad.Blocks/`  
-> Implementation status: initial source-buffer contracts and a Vue inspection workbench are implemented; the full semantic block projection and BlockSuite editor are not yet implemented.
+> Status: initial architecture and development plan  \
+> Package location: `Calcpad.Web/frontend/Calcpad.Blocks/`  \
+> Implementation status: source-buffer contracts, versioned Highlighter adapter contract, compatibility tests, and Vue inspection workbench are implemented; semantic block projection and BlockSuite editor are not implemented.
 
 ## Current implementation status
 
-The package now has a minimal Vue 3 workbench, Highlighter structural-output adapter, immutable source snapshot contracts, revision-bound source references, and UTF-16 range conversion tests. See [README.md](README.md) and [SOURCE_BUFFER_CONTRACT.md](SOURCE_BUFFER_CONTRACT.md).
+The package contains:
 
-The current workbench is an inspection UI: it shows the original source unchanged beside the flat constructs returned by the current Highlighter output. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships.
+- Host-owned immutable source snapshot, revision, and edit-request contracts.
+- A versioned Blocks adapter for the current flat Calcpad.Highlighter structural-output shape.
+- Explicit mapping from Highlighter file locators to stable host-owned file identities.
+- Per-projection snapshot capture and a source manifest.
+- Conservative mapping statuses, unknown-kind/origin preservation, and UTF-16 range validation.
+- A minimal Vue inspection workbench.
+
+The adapter preserves the Highlighter's construct order and raw kind/origin values. It does not infer semantic span roles, statement/container boundaries, containment, complete source coverage, embedded-content subtypes, or macro provenance relationships.
+
+The current workbench shows original source unchanged beside the flat constructs returned by Highlighter. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships.
 
 The UI is not yet wired into calcpad-web. BlockSuite integration remains a separate step after the source projection contract is complete; the BlockSuite document must remain an ephemeral rendering projection, never another persisted worksheet or undo history.
 
@@ -90,7 +99,7 @@ Each block gets its own folder when it has meaningful schema, rendering, command
 
 The projection pipeline has three conceptual steps:
 
-1. Obtain the original source and structural output for a specific document revision.
+1. Obtain the original source and structural output for a document revision.
 2. Use Calcpad.Highlighter's recognized constructs, ranges, file identity, and provenance to identify specialized regions and reliable nesting.
 3. Fill all remaining source intervals with contiguous text blocks.
 
@@ -157,18 +166,17 @@ Recognition must be evidence-based. A block must not claim semantic fields that 
 
 Calcpad.Highlighter owns Calcpad structural recognition. Calcpad.Blocks must not implement another Calcpad keyword scanner or parser.
 
-The structural-output contract should expose, where supported:
+The version 1 Blocks adapter is defined in `src/integrations/calcpad/highlighter-contract.ts`. It wraps the current C# payload without changing Highlighter. It adds Blocks-owned contract metadata, explicit host identity mapping, snapshot binding, and diagnostics.
 
-- construct kind;
-- source file identity;
-- exact source range;
-- original source text or a reliable way to retrieve it;
-- source origin/provenance;
-- nesting/containment relationships;
-- include and macro relationships;
-- diagnostics or mapping limitations.
+The current contract explicitly reports missing information rather than synthesizing it:
 
-HTML and SVG should be exposed as distinct structural constructs when the Highlighter can reliably distinguish them. If the current structural output only exposes a broader content kind, refine that upstream contract rather than adding competing recognition in Blocks.
+- construct kinds and origins are preserved, including unknown future values;
+- Highlighter order is preserved;
+- source references are created only after host identity, snapshot, and range validation;
+- semantic span role remains unknown;
+- complete source coverage, containment, macro provenance graph, and embedded-content subtype classification remain unsupported.
+
+If an upstream Highlighter PR is accepted in the future, maintainers may add corresponding C# contract DTOs. That is optional and is not a prerequisite for this adapter.
 
 The Highlighter does not render HTML or SVG and does not depend on BlockSuite, Vue, Monaco, or DOM APIs.
 

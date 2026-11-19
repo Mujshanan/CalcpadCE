@@ -3,14 +3,15 @@
 **Repository:** `Mujshanan/CalcpadCE`  
 **Branch:** `hbc-m3/versioned-blocks-adapter`  
 **Base:** `3db939150c20d4adc07f06a5d3888a6b4f40d70f`  
-**Current implementation commit:** `f0187cdf03e1fbf9170177e75ac8833846d79047`  
+**Initial adapter implementation commit:** `97477cbf65d640fdb37343b1c928953a0126c4c4`  
 **Status:** Implementation authored; runtime validation pending
 
 ## 1. Scope completed
 
 Implemented the versioned TypeScript Highlighter-to-Blocks adapter contract in:
 
-`Calcpad.Web/frontend/Calcpad.Blocks/src/integrations/calcpad/highlighter-contract.ts`
+- `Calcpad.Web/frontend/Calcpad.Blocks/src/integrations/calcpad/highlighter-contract.ts`
+- `Calcpad.Web/frontend/Calcpad.Blocks/src/core/source/contracts.ts`
 
 The adapter:
 
@@ -19,7 +20,9 @@ The adapter:
 - declares current capabilities and explicitly marks unsupported guarantees;
 - preserves Highlighter construct order;
 - preserves raw construct kinds and origins while normalizing unknown future values to `Unknown`;
+- models `HighlighterFileLocator` / `HighlighterSourceRange` separately from host `SourceFileId` / `SourceRange`;
 - records the original Highlighter file locator separately from the host file identity;
+- deprecates the legacy identity-by-locator buffer helper for new integrations;
 - binds source references only after host identity resolution, snapshot capture, and range validation;
 - exposes per-projection source snapshot manifests and mapping diagnostics;
 - records semantic span role as `unknown`, rather than inferring token/line/statement/container semantics;

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ref } from 'vue';
 import { useSelection } from '../../src/ui/composables/useSelection';
 import { createTestProjection } from '../helpers/projection';
 
 test('selects only existing projection indexes and retains selection independently of mode', () => {
-    const selection = useSelection({ value: createTestProjection().constructs } as never);
+    const selection = useSelection(ref(createTestProjection().constructs));
     selection.select(1);
     assert.equal(selection.selectedIndex.value, 1);
     assert.equal(selection.selectedConstruct.value?.projectionIndex, 1);

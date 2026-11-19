@@ -1,68 +1,148 @@
-# Calcpad.Blocks — Source Buffer Contract
+# Calcpad.Blocks — Source Buffer and Highlighter Adapter Contract
 
-Status: initial TypeScript contract aligned to the current Highlighter implementation.
+Status: HBC-M3 implementation, contract version 1.
 
 ## 1. Verified Highlighter surface
 
-The current Calcpad.Highlighter branch exposes:
+The current Calcpad.Highlighter output remains unchanged:
 
-- ContentResolver.GetStagedContent(content, sourceFilePath, macroCalls, sourceBuffers) accepts root source as a string and an optional ISourceBufferProvider.
-- ISourceBufferProvider.TryGetSource(file, out source) is a synchronous lookup for the exact current text of a resolved included file. It does not expose revisions, writes, selections, or editor lifecycle.
-- StructuralOutputBuilder.Build(rootSource, rootSourceId, staged, sourceBuffers) builds a flat list of StructuralConstruct values.
-- StructuralConstruct.Range is optional. When present, coordinates are zero-based line/column positions with an exclusive end.
-- StructuralOutput has no parent/child relationship, no complete source coverage guarantee, and no revision field.
-- HtmlOrMarkdownContent groups several token types, including HTML, JavaScript, CSS, and SVG. It is not yet a reliable HTML-versus-SVG discriminator.
-- Several ranges identify recognized token spans, not complete statements or containers. They must not be treated as complete visual block boundaries.
-- Macro expansion and include mapping can be incomplete. An absent or invalid range is an explicit unmapped construct.
+- `StructuralOutput.Constructs` is a flat list.
+- Each `StructuralConstruct` exposes `Kind`, optional `Range`, optional `Text`, `Origin`, and optional `Name`.
+- A source range uses zero-based line/column coordinates with an exclusive end.
+- The output has no contract version, revision, parent/child relationship, complete source coverage, or semantic span-role declaration.
+- `HtmlOrMarkdownContent` still groups several embedded-content token types; it does not reliably distinguish HTML, SVG, Markdown, CSS, or JavaScript.
+- Several ranges identify token spans rather than complete statements or containers.
+- Include and macro mapping may be partial. Missing or invalid ranges remain explicit limitations.
 
-The current SourceRange uses .NET string positions, which are UTF-16 code-unit columns. JavaScript string offsets are also UTF-16 code units. Do not convert these coordinates to UTF-8 byte offsets or Unicode scalar indices.
+The source-range converter uses UTF-16 code-unit columns, matching .NET and JavaScript string indexing. CRLF is treated as one line break. Do not convert these coordinates to UTF-8 byte offsets or Unicode scalar indices.
 
-## 2. Ownership
+## 2. Versioned Blocks adapter contract
 
-The host editor owns mutable source buffers, stable file identities, revision tokens, persistence, dirty state, file lifecycle, conflicts, edit validation, undo/redo, and editor selection/reveal.
+Blocks wraps the unchanged Highlighter payload in this envelope:
 
-Calcpad.Blocks owns immutable source references bound to a host revision, Highlighter-output adaptation, projection/presentation, block selection, and source-edit requests expressing user intent.
+- Contract ID: `calcpad.highlighter.blocks`
+- Contract version: `1`
+- Capabilities: explicit declarations for flat constructs, source ranges, complete source coverage, containment, macro provenance, embedded-content classification, and semantic span roles.
+- Source manifest: the exact host snapshots captured or attempted during the projection request.
+- Constructs: normalized construct entries, retaining raw Highlighter values.
+- Diagnostics: explicit range/identity/snapshot mapping failures.
 
-Blocks must not maintain a second mutable source document or independent authoritative undo stack.
+Versioning belongs to Blocks. It does not require a version field or DTO change in the current C# Highlighter model.
 
-## 3. Buffer snapshot contract
+### Current capability declarations
 
-SourceBufferSnapshot contains fileId, revision, text, and writable.
+| Capability | Version 1 |
+|---|---|
+| Flat construct list | Supported |
+| Source range field | Supported, optional per construct |
+| Complete source coverage | Not supported |
+| Verified containment relationships | Not supported |
+| Macro provenance graph | Not supported |
+| Embedded-content subtype classification | Not supported |
+| Semantic span-role classification | Not supported |
 
-The root snapshot text is passed as content to GetStagedContent. Included-file snapshots are exposed through HighlighterIncludeSourceProvider.tryGetSource, which adapts to the current C# ISourceBufferProvider.TryGetSource contract.
+The adapter sets `spanRole` to `unknown` for every current construct. It must not infer token, line, statement, or container semantics from the construct kind.
 
-The source provider captures the root snapshot immediately and each include snapshot on first access. It then serves the same text and revision for the entire projection request, even if the host buffer changes while resolution is running. A missing include snapshot is also cached as missing for that request.
+## 3. Host-owned source identity
 
-## 4. Source references and coordinates
+A Highlighter `SourceRange.File` is a Highlighter-side file locator. It is not assumed to be a stable host file identity.
 
-A SourceReference contains fileId, revision, original Highlighter range, and source origin.
+The host supplies a `HighlighterSourceIdentityResolver` that maps each Highlighter file locator to a stable `SourceFileId`, and optionally retains the canonical locator. The root Highlighter locator is explicitly pinned to the supplied root snapshot.
 
-Ranges are half-open: [start, end). Line and column values are zero-based. Columns are UTF-16 code units. Line-ending characters are not included in a line's column count. The range conversion helper treats CRLF as one line break and preserves .NET/JavaScript UTF-16 indexing.
+The adapter must not fall back to using an unmapped include path as a host file ID. If identity resolution fails, the construct is `identityUnavailable`, has no source reference, and is not editable.
 
-A source reference is verified only if the range names a file with a host snapshot, both endpoints are valid in that snapshot, and the range is ordered and within the source.
+## 4. Projection snapshot session and manifest
 
-No range, missing snapshot, or invalid coordinates remain distinct mapping statuses.
+Create one `HighlighterSourceSnapshotSession` per projection request. It:
 
-## 5. Edit request contract
+1. Pins the root snapshot immediately.
+2. Resolves included-file locators through the host identity resolver.
+3. Captures each host snapshot at most once.
+4. Caches missing identities and missing buffers for the lifetime of the request.
+5. Serves the same captured text to Highlighter and the adapter.
+6. Exposes a manifest containing every root/include locator requested, its resolved host identity when available, captured revision when available, and resolution status.
 
-All edits go through SourceBufferHost.applyEdits with fileId, expectedRevision, and source ranges plus replacement strings.
+Captured snapshots are copied into immutable snapshot objects. A host revision changing during resolution does not change the text or revision already captured for that projection.
 
-The host must reject stale revisions, read-only files, invalid ranges, and conflicting edits. It validates every range against the expected snapshot and applies accepted edits through its existing undo/redo mechanism.
+Manifest statuses are:
 
-Blocks does not optimistically mutate source text or claim an edit succeeded before the host returns status applied.
+- `captured`
+- `identityUnavailable`
+- `bufferUnavailable`
+- `identityMismatch`
 
-Local and included-file source may be editable only when the host snapshot says it is writable. Macro expansions, generated content, and unknown origins remain read-only even if a mapped source range exists. Macro expansion may navigate to its known origin but must not be edited as generated text.
+Filesystem fallback performed inside Highlighter does not itself create a host snapshot. If no matching host snapshot is available, Blocks leaves the construct unbound and read-only.
 
-## 6. Projection limitations and next Highlighter work
+## 5. Construct normalization and mapping
 
-The current structural output is a flat recognized-construct list. It is sufficient to bind verified source markers and build an inspection UI, but not sufficient to produce the final nested worksheet block tree.
+Every normalized construct retains:
 
-Before the full visual projection is implemented, Highlighter needs to provide, where the language pipeline can prove them:
+- `projectionIndex`: request-local index; not a persistent block ID.
+- `kind`: known kind or `Unknown`.
+- `rawKind`: exact Highlighter kind value.
+- `origin`: known origin or `Unknown`.
+- `rawOrigin`: exact Highlighter origin value.
+- `rawRange`: original Highlighter range and locator.
+- `sourceLocator`: original Highlighter file locator when present.
+- `spanRole`: `unknown` in version 1.
+- `mapping` / `mappingStatus`: explicit binding result.
+- `source`: present only when identity, snapshot, and range validation succeed; its file ID and range file are normalized to the host identity.
+- `editable`: true only when the mapped host snapshot is writable and the origin is Local or IncludedFile.
 
-1. Complete source spans for recognized statements and containers, not just identifier/keyword token spans.
-2. Explicit parent/child or containment relationships for genuinely nested constructs.
-3. Stable source identity for every range, including included-file source.
-4. Precise construct kinds for HTML, SVG, Markdown, and other embedded content when those modes can be distinguished.
-5. Explicit mapping status/provenance when expansion or continuation mapping is partial.
+Mapping statuses:
 
-Blocks must not add a second keyword scanner to compensate. Until these contracts exist, the workbench displays original source unchanged and lists recognized constructs without inventing nesting or semantic block boundaries.
+| Status | Meaning |
+|---|---|
+| `verified` | Stable host identity resolved, snapshot captured, and range validated |
+| `unmapped` | Highlighter supplied no range |
+| `identityUnavailable` | Locator could not be mapped to a host file identity |
+| `bufferUnavailable` | Identity resolved but no host snapshot was available |
+| `identityMismatch` | Returned snapshot identity did not match the requested host identity |
+| `invalidRange` | Range coordinates were invalid for the captured source text |
+
+A `verified` range is only a valid source correspondence. It is not proof that the range spans a complete statement or visual block.
+
+Unknown future Highlighter kinds and origins are preserved in `rawKind` and `rawOrigin`. They normalize to `Unknown` and remain conservative/read-only as appropriate; they do not cause the adapter to reject the entire output.
+
+## 6. Ordering and projection limits
+
+The adapter preserves the Highlighter construct order exactly. It does not sort constructs by original line numbers, because constructs can refer to different files and expanded content.
+
+Version 1 does not infer:
+
+- statement or container boundaries;
+- parent/child containment;
+- complete source coverage or fallback text regions;
+- macro definition/invocation/expansion relationships;
+- HTML/SVG/Markdown/JavaScript/CSS subtypes;
+- semantic span roles.
+
+The adapter is a compatibility and source-binding layer, not a second parser or a semantic projection engine.
+
+## 7. Editing and source references
+
+A `SourceReference` contains the host-owned file ID, captured revision, normalized half-open range, and normalized source origin.
+
+All edits continue through `SourceBufferHost.applyEdits` with an expected revision. The host validates and applies edits through its existing persistence and undo/redo lifecycle.
+
+- Local source can be editable when the host snapshot is writable.
+- Included source can be editable only when the host confirms it is writable.
+- MacroExpansion, Generated, and Unknown origins remain read-only.
+- Missing identity, missing snapshot, missing range, and invalid range never produce an editable source reference.
+- Blocks does not regenerate source from block properties or maintain an independent source history.
+
+## 8. Required validation
+
+The Blocks package tests cover:
+
+- versioned envelope and construct-order preservation;
+- explicit include locator-to-host identity mapping;
+- root and include snapshot manifest entries;
+- one-time snapshot capture within a projection session;
+- identity unavailable, buffer unavailable, and identity mismatch states;
+- invalid and missing ranges;
+- generated-content read-only behavior;
+- unknown future kind/origin preservation;
+- conservative unknown span-role and capability declarations.
+
+Runtime compatibility against serialized C# Highlighter output still requires an integration fixture or host-side invocation. The adapter tests currently exercise the exact TypeScript shape corresponding to the inspected C# model; they do not execute the .NET Highlighter.

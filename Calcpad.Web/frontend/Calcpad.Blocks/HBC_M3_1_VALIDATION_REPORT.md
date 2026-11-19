@@ -2,49 +2,62 @@
 
 **Repository:** `Mujshanan/CalcpadCE`  
 **Branch:** `hbc-m3/versioned-blocks-adapter`  
-**Validation workflow commit:** `5c575a831a7a470f09b87a6e0a56773b3769f068`  
-**Status:** CI workflow added; execution result not yet observable
+**Status:** C#/TypeScript serialization compatibility tests authored; execution pending
 
-## 1. Work performed
+## 1. Finding: the current C# wire format uses numeric enums
 
-Added `.github/workflows/hbc-m3-validation.yml` to run the Blocks package checks on pushes to HBC-M3 branches, relevant pull requests, and manual dispatch.
+The C# DTOs in `Calcpad.Highlighter/ContentResolution/StructuralOutput.cs` define `StructuralConstructKind` and `SourceOrigin` as ordinary enums.
 
-The workflow:
+The server registers MVC with `AddControllers()` in `Calcpad.Web/backend/Services/CalcpadApiService.cs`. No `JsonStringEnumConverter` or custom MVC JSON options are registered there. ASP.NET Core's default `System.Text.Json` web configuration therefore emits these enum properties as JSON numbers, not enum-name strings. Property names are camel-cased.
 
-1. Checks out the repository.
-2. Sets up Node.js 22.
-3. Installs package dependencies with npm.
-4. Runs `npm test`.
-5. Runs `npm run typecheck`.
-6. Runs `npm run build`.
+This exposed a real mismatch: the original TypeScript adapter accepted only string enum values. The adapter now accepts both numeric and string values. Numeric ordinals map using the C# declaration order; unknown numeric and string values normalize to `Unknown` while retaining the exact raw value.
 
-The workflow intentionally does not use npm's setup-node cache because the Blocks package does not currently commit a package lockfile. This avoids a cache setup failure caused by a missing lockfile.
+## 2. Shared cross-language fixture
 
-## 2. Execution constraints
+Added:
 
-A local checkout could not be established in this environment because outbound DNS/network access to GitHub is unavailable. The GitHub connector exposes commit-associated workflow runs only for pull-request-triggered runs; it returned no runs for the validation commits. The commit status endpoint also returned no reported statuses.
+- `Calcpad.Tests/Highlighter/Fixtures/structural-output.web.json`
+- `Calcpad.Tests/Highlighter/StructuralOutputSerializationCompatibilityTests.cs`
 
-Therefore, no test, typecheck, or build result is claimed. The workflow has been committed to the branch, but its execution and result must be confirmed from the repository's Actions page.
+The C# test serializes actual `StructuralOutput`, `StructuralConstruct`, `SourceRange`, and enum DTO instances using `JsonSerializerDefaults.Web`, then compares the result structurally with the shared fixture. The test covers all 16 construct-kind enum ordinals and all 5 origin ordinals, including nullable range/text/name fields and the camel-case property shape.
 
-## 3. Compatibility coverage still required
+The fixture is copied to the .NET test output directory by `Calcpad.Tests.csproj`.
 
-The existing TypeScript tests cover the adapter's normalization and source-binding behavior using fixtures. A further integration test should capture or construct a representative JSON payload from the actual C# `StructuralOutput` serialization path and feed it through the TypeScript adapter.
+## 3. TypeScript compatibility test
 
-That test should verify:
+Updated `Calcpad.Web/frontend/Calcpad.Blocks/src/integrations/calcpad/highlighter-contract.ts`:
 
-- enum serialization names and casing;
-- null and absent range behavior;
-- zero-based, exclusive-end coordinate semantics;
-- included-file locator values as emitted by the resolver;
-- nullable `Text` and `Name` fields;
-- unknown future enum values.
+- accepts `kind` and `origin` as either strings or numbers;
+- maps numeric enum values by the current C# enum ordinal order;
+- preserves raw numeric/string values in `rawKind` and `rawOrigin`;
+- maps unknown future numeric values to `Unknown` without discarding their raw values;
+- retains string-enum compatibility.
 
-Do not change `Calcpad.Highlighter` merely to make the adapter tests pass. If the real serialized payload differs from the TypeScript contract, document the observed payload and adapt the TypeScript boundary.
+Added a TypeScript test that reads the same fixture consumed by the C# test and passes it through `adaptHighlighterOutput`. It asserts all known kind/origin mappings, raw numeric preservation, valid source binding, and null-range behavior. A separate test covers unknown numeric enum values.
 
-## 4. Current disposition
+## 4. CI validation
 
-- CI workflow authored and committed.
-- Highlighter source remains unchanged.
-- No merge or pull request created.
-- Runtime package validation remains pending.
-- HBC-M3.1 remains open until the workflow passes and real-payload compatibility is covered.
+Updated `.github/workflows/hbc-m3-validation.yml` to run:
+
+1. .NET 10 serialization compatibility test:
+   `dotnet test ../../../Calcpad.Tests/Calcpad.Tests.csproj --filter FullyQualifiedName~StructuralOutputSerializationCompatibilityTests`
+2. Blocks package tests: `npm test`
+3. TypeScript typecheck: `npm run typecheck`
+4. Blocks package build: `npm run build`
+
+The .NET step uses the shared fixture from the repository checkout; the Node step reads that same fixture. This is a paired producer-contract / consumer-contract test rather than a live HTTP endpoint test.
+
+## 5. Validation limitations
+
+No local .NET or npm test execution is claimed. The environment still cannot establish a local GitHub checkout, and the workflow result must be confirmed from GitHub Actions.
+
+The C# test exercises the exact DTO serialization shape with ASP.NET Core's documented web defaults. It does not launch the server or capture an HTTP response. If the server later adds a custom converter or JSON option, the serialization test and fixture must be updated together.
+
+## 6. Disposition
+
+- Numeric-enum incompatibility identified and addressed in the TypeScript boundary.
+- Shared C# JSON fixture and paired C#/TypeScript tests authored.
+- CI extended to run both sides of the fixture contract.
+- No changes made under `Calcpad.Highlighter`.
+- No pull request opened and no merge performed.
+- HBC-M3.1 remains open until CI passes.

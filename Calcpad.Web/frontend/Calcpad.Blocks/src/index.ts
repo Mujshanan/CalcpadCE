@@ -3,3 +3,5 @@ export * from './core/source/range';
 export * from './integrations/calcpad/highlighter-contract';
 export { default as CalcpadBlocksWorkbench } from './ui/CalcpadBlocksWorkbench.vue';
 export { default as CalcpadMonacoEditor } from './ui/CalcpadMonacoEditor.vue';
+
+export * from './integrations/calcpad/highlighter-tokens';

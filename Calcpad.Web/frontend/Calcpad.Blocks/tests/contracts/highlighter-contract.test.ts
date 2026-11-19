@@ -5,6 +5,8 @@ import {
     adaptHighlighterOutput,
     BLOCKS_HIGHLIGHTER_CONTRACT_ID,
     BLOCKS_HIGHLIGHTER_CONTRACT_VERSION,
+    HIGHLIGHTER_KIND_ORDINAL_COUNT,
+    HIGHLIGHTER_ORIGIN_ORDINAL_COUNT,
     createHighlighterSourceSnapshotSession,
     type HighlighterStructuralOutput,
 } from '../../src/integrations/calcpad/highlighter-contract';
@@ -58,6 +60,12 @@ function construct(
         ...overrides,
     };
 }
+
+
+test('pins the reviewed upstream enum table sizes', () => {
+    assert.equal(HIGHLIGHTER_KIND_ORDINAL_COUNT, 16);
+    assert.equal(HIGHLIGHTER_ORIGIN_ORDINAL_COUNT, 5);
+});
 
 test('emits the versioned Blocks contract and preserves Highlighter order', () => {
     const result = adaptHighlighterOutput({

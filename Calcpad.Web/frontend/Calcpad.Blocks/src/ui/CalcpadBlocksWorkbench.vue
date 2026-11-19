@@ -347,7 +347,7 @@ function openSource(item: BoundHighlighterConstruct): void {
                     class="calcpad-blocks__construct"
                     :class="{
                         'is-selected': selectedIndex === item.projectionIndex,
-                        'is-unmapped': item.mappingStatus !== 'verified',
+                        'is-unmapped': item.mappingStatus !== 'mapped',
                     }"
                 >
                     <button

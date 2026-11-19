@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Highlighter\**\*.cpd;Highlighter\**\*.csv">
+    <None Update="Highlighter\**\*.cpd;Highlighter\**\*.csv;Highlighter\**\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

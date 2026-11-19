@@ -29,7 +29,6 @@ const emit = defineEmits<{
 const host = ref<HTMLDivElement>();
 let editor: monaco.editor.IStandaloneCodeEditor | undefined;
 let semanticProvider: { dispose(): void } | undefined;
-let languageRegistration: { dispose(): void } | undefined;
 let contentSubscription: { dispose(): void } | undefined;
 let requestSequence = 0;
 
@@ -93,7 +92,7 @@ onMounted(() => {
     if (!host.value) return;
     installWorker();
 
-    languageRegistration = monaco.languages.register({ id: 'calcpad' });
+    monaco.languages.register({ id: 'calcpad' });
     monaco.editor.defineTheme('calcpad-light', {
         base: 'vs',
         inherit: true,
@@ -113,7 +112,7 @@ onMounted(() => {
             comment: '#008000',
             tag: '#800000',
         },
-    });
+    } as monaco.editor.IStandaloneThemeData);
 
     editor = monaco.editor.create(host.value, {
         value: props.modelValue,
@@ -128,7 +127,6 @@ onMounted(() => {
         insertSpaces: true,
         readOnly: props.readOnly,
         wordWrap: 'off',
-        semanticHighlighting: { enabled: true },
         padding: { top: 10, bottom: 10 },
     });
 
@@ -209,7 +207,6 @@ onBeforeUnmount(() => {
     requestSequence++;
     contentSubscription?.dispose();
     semanticProvider?.dispose();
-    languageRegistration?.dispose();
     editor?.dispose();
 });
 </script>

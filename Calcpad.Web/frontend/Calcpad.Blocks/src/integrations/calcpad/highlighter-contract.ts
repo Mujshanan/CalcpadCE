@@ -152,13 +152,17 @@ export function createHighlighterSourceSnapshotSession(
         const cached = resolutions.get(highlighterFile);
         if (cached) return cached;
 
-        const identity = resolveIdentity(highlighterFile);
-        if (!identity || !identity.fileId) {
+        const resolvedIdentity = resolveIdentity(highlighterFile);
+        if (!resolvedIdentity || !resolvedIdentity.fileId) {
             const missing = { status: 'identityUnavailable' as const };
             resolutions.set(highlighterFile, missing);
             return missing;
         }
 
+        const identity: HighlighterSourceIdentity = Object.freeze({
+            fileId: resolvedIdentity.fileId,
+            locator: resolvedIdentity.locator,
+        });
         const candidate = identity.fileId === root.fileId
             ? root
             : hostSnapshots.getSnapshot(identity.fileId);

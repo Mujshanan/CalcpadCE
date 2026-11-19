@@ -115,7 +115,7 @@ const selectedSource = computed(() => {
     };
 });
 
-const sourceLines = computed(() => selectedSource.value.text.split(/\\r\\n|\\r|\\n/));
+const sourceLines = computed(() => selectedSource.value.text.split(/\r\n|\r|\n/));
 
 function freshnessOf(item: BoundHighlighterConstruct): 'current' | 'stale' | 'unknown' {
     if (!item.source) return 'unknown';

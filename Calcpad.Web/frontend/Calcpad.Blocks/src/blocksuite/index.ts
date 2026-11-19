@@ -5,3 +5,12 @@ export {
     CalcpadWorksheetSchema,
     createCalcpadBlockSchema,
 } from './schema';
+export {
+    createCalcpadBlockDocument,
+    serializeCalcpadBlockProjection,
+} from './document';
+export type {
+    CalcpadBlockDocument,
+    CalcpadBlockDocumentInput,
+} from './document';
+export { default as CalcpadBlocksEditor } from './CalcpadBlocksEditor.vue';

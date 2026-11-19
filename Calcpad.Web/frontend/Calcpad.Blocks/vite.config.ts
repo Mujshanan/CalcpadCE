@@ -9,6 +9,8 @@ export default defineConfig({
             formats: ['es'],
             fileName: 'calcpad-blocks',
         },
-        rollupOptions: { external: ['vue'] },
+        rollupOptions: {
+            external: ['vue', '@blocksuite/store'],
+        },
     },
 });

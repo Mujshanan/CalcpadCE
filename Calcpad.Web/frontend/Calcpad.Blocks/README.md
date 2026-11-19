@@ -1,20 +1,30 @@
 # Calcpad.Blocks
 
-An isolated Vue 3 package for the source-backed Calcpad worksheet workbench.
+An isolated Vue 3 package for a source-backed Calcpad worksheet projection.
 
 ## Current contents
 
 - Host-owned source snapshot, revision, and edit-request contracts.
-- An adapter matching the current Highlighter structural-output shape.
+- A Highlighter structural-output adapter with explicit source identity mapping.
 - UTF-16 source-range conversion with CRLF handling.
-- A first inspection workbench that shows original source beside recognized Highlighter constructs.
+- A stable BlockSuite store schema and transient document factory.
+- A read-only Vue renderer that reads the source text from the BlockSuite model.
+- Tests for source fidelity, schema relationships, lifecycle boundaries, and
+  projection snapshot serialization.
 
-The workbench is deliberately an inspection surface, not yet the final nested visual worksheet editor. The current Highlighter output is flat and some ranges are token-sized; the UI therefore does not invent semantic block boundaries or nesting.
+The current Highlighter output is flat and some ranges are token-sized. The
+initial BlockSuite document therefore contains one source-text block; it does
+not infer semantic boundaries or nesting.
+
+## Ownership
+
+Calcpad source remains authoritative. BlockSuite is a disposable projection,
+not a second worksheet format. The host owns persistence, revisions, editing,
+conflicts, and undo/redo. The BlockSuite store is read-only.
 
 ## Development
 
-Run npm install, npm test, npm run typecheck, and npm run build from this directory.
-
-Vue is a peer dependency. The package is not yet wired into calcpad-web; that integration follows after the source contracts and Highlighter projection shape are validated.
-
-See DEVELOPMENT.md and SOURCE_BUFFER_CONTRACT.md for architecture and current limitations.
+Run `npm install`, `npm test`, `npm run typecheck`, and `npm run build`
+from this directory. See [DEVELOPMENT.md](DEVELOPMENT.md) and
+[BLOCKSUITE_INTEGRATION.md](BLOCKSUITE_INTEGRATION.md) for architecture and
+current limitations.

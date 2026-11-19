@@ -238,6 +238,9 @@ function onHighlightStatus(message: string, ok: boolean): void {
                     <div class="highlight-status" :class="{ success: highlightOk }" role="status">
                         {{ highlightStatus }}
                     </div>
+                    <button type="button" class="retry-highlight" @click="editorRef?.refreshHighlight()">
+                        Retry Highlighter
+                    </button>
                     <p v-if="tokens.length === 0" class="token-empty">
                         Connect the local Calcpad server to populate this list from
                         <code>POST /api/calcpad/highlight</code>.

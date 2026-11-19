@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { CalcpadMonacoEditorEmits, CalcpadMonacoEditorProps } from './types';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import * as monaco from 'monaco-editor';
 import {
@@ -7,24 +8,11 @@ import {
     isCalcpadTokenInModel,
     mapCalcpadTokenType,
     type CalcpadHighlightResponse,
-    type CalcpadHighlightToken,
-} from '../integrations/calcpad/highlighter-tokens';
+    } from '../integrations/calcpad/highlighter-tokens';
 
-type HighlightToken = CalcpadHighlightToken;
+const props = withDefaults(defineProps<CalcpadMonacoEditorProps>(), { apiToken: '', sourceFilePath: '', readOnly: false });
 
-const props = withDefaults(defineProps<{
-    modelValue: string;
-    apiBaseUrl: string;
-    apiToken?: string;
-    sourceFilePath?: string;
-    readOnly?: boolean;
-}>(), { apiToken: '', sourceFilePath: '', readOnly: false });
-
-const emit = defineEmits<{
-    'update:modelValue': [value: string];
-    highlighted: [tokens: readonly HighlightToken[]];
-    highlightStatus: [message: string, ok: boolean];
-}>();
+const emit = defineEmits<CalcpadMonacoEditorEmits>();
 
 const host = ref<HTMLDivElement>();
 let editor: monaco.editor.IStandaloneCodeEditor | undefined;
@@ -43,7 +31,7 @@ function installWorker(): void {
     };
 }
 
-async function fetchTokens(content: string): Promise<readonly HighlightToken[]> {
+async function fetchTokens(content: string): Promise<readonly CalcpadHighlightToken[]> {
     const base = props.apiBaseUrl.trim().replace(/\/$/, '');
     if (!base) throw new Error('Enter the Calcpad server base URL.');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

@@ -465,3 +465,128 @@ test('preserves unknown numeric enum values from future C# versions', () => {
     assert.equal(result.constructs[0].origin, 'Unknown');
     assert.equal(result.constructs[0].rawOrigin, 65534);
 });
+
+
+test('preserves and diagnoses unknown numeric kind ordinals', () => {
+    for (const rawKind of [-1, 1.5, 99]) {
+        const result = adaptHighlighterOutput({
+            constructs: [construct({ kind: rawKind, range: null, text: null })],
+        }, session());
+
+        assert.equal(result.constructs[0].kind, 'Unknown');
+        assert.equal(result.constructs[0].kindStatus, 'unknown');
+        assert.equal(result.constructs[0].rawKind, rawKind);
+        assert.ok(result.diagnostics.some((item) =>
+            item.code === 'unknown-kind-ordinal' && item.rawValue === rawKind,
+        ));
+    }
+});
+
+test('preserves and diagnoses unknown string kind and origin names', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            kind: 'FutureConstructKind',
+            origin: 'FutureOrigin',
+            range: null,
+            text: null,
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].kind, 'Unknown');
+    assert.equal(result.constructs[0].kindStatus, 'unknown');
+    assert.equal(result.constructs[0].rawKind, 'FutureConstructKind');
+    assert.equal(result.constructs[0].origin, 'Unknown');
+    assert.equal(result.constructs[0].originStatus, 'unknown');
+    assert.equal(result.constructs[0].rawOrigin, 'FutureOrigin');
+    assert.ok(result.diagnostics.some((item) =>
+        item.code === 'unknown-kind-name' && item.rawValue === 'FutureConstructKind',
+    ));
+    assert.ok(result.diagnostics.some((item) =>
+        item.code === 'unknown-origin-name' && item.rawValue === 'FutureOrigin',
+    ));
+});
+
+test('preserves and diagnoses unknown numeric origin ordinals', () => {
+    for (const rawOrigin of [-1, 2.5, 99]) {
+        const result = adaptHighlighterOutput({
+            constructs: [construct({ origin: rawOrigin, range: null, text: null })],
+        }, session());
+
+        assert.equal(result.constructs[0].origin, 'Unknown');
+        assert.equal(result.constructs[0].originStatus, 'unknown');
+        assert.equal(result.constructs[0].rawOrigin, rawOrigin);
+        assert.ok(result.diagnostics.some((item) =>
+            item.code === 'unknown-origin-ordinal' && item.rawValue === rawOrigin,
+        ));
+    }
+});
+
+test('marks recognized values known and emits no unknown-value diagnostics', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({ kind: 0, origin: 0, range: null, text: null })],
+    }, session());
+
+    assert.equal(result.constructs[0].kind, 'Comment');
+    assert.equal(result.constructs[0].kindStatus, 'known');
+    assert.equal(result.constructs[0].origin, 'Local');
+    assert.equal(result.constructs[0].originStatus, 'known');
+    assert.equal(result.diagnostics.filter((item) => item.code.startsWith('unknown-')).length, 0);
+});
+
+test('rejects inverted and out-of-bounds ranges without clamping', () => {
+    for (const invalidRange of [
+        {
+            file: '/workspace/main.cpd',
+            startLine: 0,
+            startColumn: 3,
+            endLine: 0,
+            endColumn: 1,
+        },
+        {
+            file: '/workspace/main.cpd',
+            startLine: 8,
+            startColumn: 0,
+            endLine: 8,
+            endColumn: 0,
+        },
+        {
+            file: '/workspace/main.cpd',
+            startLine: 0,
+            startColumn: 0,
+            endLine: 0,
+            endColumn: 99,
+        },
+    ]) {
+        const result = adaptHighlighterOutput({
+            constructs: [construct({ range: invalidRange })],
+        }, session());
+
+        assert.equal(result.constructs[0].mappingStatus, 'invalidRange');
+        assert.equal(result.constructs[0].source, undefined);
+        assert.equal(result.constructs[0].editable, false);
+        assert.ok(result.diagnostics.some((item) => item.code === 'source-range-invalid'));
+    }
+});
+
+test('does not permit editing generated or macro-expanded constructs', () => {
+    for (const origin of ['Generated', 'MacroExpansion']) {
+        const result = adaptHighlighterOutput({
+            constructs: [construct({ origin, text: 'x' })],
+        }, session());
+
+        assert.equal(result.constructs[0].contentVerification, 'notApplicable');
+        assert.equal(result.constructs[0].editable, false);
+    }
+});
+
+test('freezes the adapter result and all exposed collection entries', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct()],
+    }, session());
+
+    assert.equal(Object.isFrozen(result), true);
+    assert.equal(Object.isFrozen(result.constructs), true);
+    assert.equal(Object.isFrozen(result.constructs[0]), true);
+    assert.equal(Object.isFrozen(result.diagnostics), true);
+    assert.equal(Object.isFrozen(result.sourceManifest), true);
+});

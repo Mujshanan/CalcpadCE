@@ -85,7 +85,7 @@ Every normalized construct retains:
 - `rawRange`: original Highlighter range and locator.
 - `sourceLocator`: original Highlighter file locator when present.
 - `spanRole`: `unknown` in version 1.
-- `mapping` / `mappingStatus`: explicit binding result.
+- `mappingStatus`: explicit source-binding result.
 - `source`: present only when identity, snapshot, and range validation succeed; its file ID and range file are normalized to the host identity.
 - `editable`: true only when the mapped host snapshot is writable and the origin is Local or IncludedFile.
 
@@ -93,14 +93,37 @@ Mapping statuses:
 
 | Status | Meaning |
 |---|---|
-| `verified` | Stable host identity resolved, snapshot captured, and range validated |
+| `mapped` | Stable host identity resolved, snapshot captured, and range validated |
 | `unmapped` | Highlighter supplied no range |
 | `identityUnavailable` | Locator could not be mapped to a host file identity |
 | `bufferUnavailable` | Identity resolved but no host snapshot was available |
 | `identityMismatch` | Returned snapshot identity did not match the requested host identity |
 | `invalidRange` | Range coordinates were invalid for the captured source text |
 
-A `verified` range is only a valid source correspondence. It is not proof that the range spans a complete statement or visual block.
+A `mapped` range means only that the host identity, captured snapshot, and coordinates correspond. It is not proof that the range spans a complete statement or visual block. Mapping and content verification are separate states.
+
+### Content verification
+
+For `Local` and `IncludedFile` constructs, the adapter compares the exact captured source slice with Highlighter's `Text` value. It applies no trimming, newline conversion, or other normalization:
+
+| Status | Meaning |
+|---|---|
+| `matched` | Exact source slice equals Highlighter text |
+| `mismatched` | Source range is valid, but the exact strings differ |
+| `notComparable` | Highlighter text is null or no valid range/snapshot is available |
+| `notApplicable` | Origin is generated, macro-expanded, or unknown |
+
+A mismatch does not erase the valid source mapping, but it emits `source-content-mismatch` and makes the construct non-editable. Exact comparison is intentionally conservative until actual Highlighter output has been characterized for trimming or normalization. Do not silently introduce normalization rules.
+
+### Freshness
+
+The adapter's source reference records the immutable revision captured for that projection. It does not claim that the revision remains current indefinitely. The workbench compares that captured revision with host-supplied current revisions:
+
+- `current`: the host's current revision matches the captured revision;
+- `stale`: the host reports a different current revision;
+- `unknown`: no current revision is supplied for that file.
+
+The root file can use the workbench's `sourceFileId` and `revision`; included files can use `currentSourceRevisions`. A captured snapshot alone must never be presented as proof of currentness.
 
 Unknown future Highlighter kinds and origins are preserved in `rawKind` and `rawOrigin`. They normalize to `Unknown` and remain conservative/read-only as appropriate; they do not cause the adapter to reject the entire output.
 
@@ -142,6 +165,8 @@ The Blocks package tests cover:
 - identity unavailable, buffer unavailable, and identity mismatch states;
 - invalid and missing ranges;
 - generated-content read-only behavior;
+- exact source-slice content verification and mismatch handling;
+- snapshot-provider exception degradation to `bufferUnavailable`;
 - unknown future kind/origin preservation;
 - conservative unknown span-role and capability declarations.
 

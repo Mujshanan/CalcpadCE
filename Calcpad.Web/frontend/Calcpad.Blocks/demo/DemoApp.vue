@@ -44,7 +44,12 @@ const activeServerPath = computed(() =>
 );
 const sourceLines = computed(() => sourceText.value.split(/\r?\n/));
 
-function onExampleChange(event: Event): void {\n    const target = event.target as HTMLSelectElement;\n    selectExample(target.value);\n}\n\nfunction selectExample(id: string): void {
+function onExampleChange(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    selectExample(target.value);
+}
+
+function selectExample(id: string): void {
     const example = demoExamples.find((item) => item.id === id);
     if (!example) return;
     selectedExampleId.value = id;

@@ -89,6 +89,55 @@ namespace Calcpad.Highlighter.ContentResolution
                     }));
             }
 
+            // Custom-unit metadata carries original file/line identity but not a token span.
+            // A verified whole-line range is safe; otherwise retain the semantic construct only.
+            foreach (var unit in stage3.CustomUnits ?? new List<CustomUnitDefinition>())
+            {
+                var isIncluded = unit.Source == "include";
+                var file = rootSourceId;
+                var orderLine = unit.LineNumber;
+                string source = rootSource;
+                if (isIncluded)
+                {
+                    var sourceEntry = stage3.IncludeMap.FirstOrDefault(pair =>
+                        pair.Value?.Source == "include" &&
+                        pair.Value.SourceFile == unit.SourceFile &&
+                        pair.Value.OriginalLine == unit.LineNumber);
+                    file = sourceEntry.Value?.FilePath ?? string.Empty;
+                    orderLine = sourceEntry.Value is null
+                        ? unit.LineNumber
+                        : stage3.SourceMap.GetValueOrDefault(sourceEntry.Key, sourceEntry.Key);
+                    source = null;
+                    if (!string.IsNullOrEmpty(file) && sourceBuffers is not null)
+                        sourceBuffers.TryGetSource(file, out source);
+                }
+
+                SourceRange range = null;
+                string text = null;
+                if (source is not null && TryGetLine(source, unit.LineNumber, out var definitionLine))
+                {
+                    range = new SourceRange
+                    {
+                        File = file,
+                        StartLine = unit.LineNumber,
+                        StartColumn = 0,
+                        EndLine = unit.LineNumber,
+                        EndColumn = definitionLine.Length
+                    };
+                    text = definitionLine;
+                }
+
+                candidates.Add(new Candidate(orderLine, 0, sequence++,
+                    new StructuralConstruct
+                    {
+                        Kind = StructuralConstructKind.CustomUnitDefinition,
+                        Range = range,
+                        Text = text,
+                        Origin = isIncluded ? SourceOrigin.IncludedFile : SourceOrigin.Local,
+                        Name = unit.Name
+                    }));
+            }
+
             // MacroParser omits #include directives from Stage 3, but retains their
             // resolved paths and root-document line numbers in the existing trace.
             foreach (var include in staged.Stage2.IncludeDirectives ?? new List<IncludeDirectiveInfo>())

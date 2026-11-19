@@ -1,6 +1,7 @@
 import {
     canEditSource,
     type SourceBufferSnapshot,
+    type HighlighterFileLocator,
     type SourceFileId,
     type SourceOrigin,
     type SourceReference,
@@ -95,7 +96,7 @@ export interface HighlighterSourceIdentity {
 }
 
 export type HighlighterSourceIdentityResolver =
-    (highlighterFile: string) => HighlighterSourceIdentity | undefined;
+    (highlighterFile: HighlighterFileLocator) => HighlighterSourceIdentity | undefined;
 
 export type SourceManifestStatus =
     | 'captured'
@@ -105,7 +106,7 @@ export type SourceManifestStatus =
 
 export interface ProjectionSourceManifestEntry {
     /** File key as it appeared in the Highlighter output/resolution pipeline. */
-    readonly highlighterFile: string;
+    readonly highlighterFile: HighlighterFileLocator;
     /** Host identity is present only when resolution succeeded. */
     readonly fileId?: SourceFileId;
     readonly locator?: string;
@@ -119,8 +120,8 @@ export interface ProjectionSourceManifestEntry {
  * construct binding, and the resulting manifest.
  */
 export interface HighlighterSourceSnapshotSession {
-    tryGetSource(highlighterFile: string): string | undefined;
-    getSnapshotForHighlighterFile(highlighterFile: string): SourceBufferSnapshot | undefined;
+    tryGetSource(highlighterFile: HighlighterFileLocator): string | undefined;
+    getSnapshotForHighlighterFile(highlighterFile: HighlighterFileLocator): SourceBufferSnapshot | undefined;
     getManifest(): readonly ProjectionSourceManifestEntry[];
 }
 
@@ -131,7 +132,7 @@ export interface HighlighterSourceSnapshotSession {
  */
 export function createHighlighterSourceSnapshotSession(
     rootSnapshot: SourceBufferSnapshot,
-    rootHighlighterFile: string,
+    rootHighlighterFile: HighlighterFileLocator,
     hostSnapshots: SourceSnapshotProvider,
     resolveIdentity: HighlighterSourceIdentityResolver,
 ): HighlighterSourceSnapshotSession {
@@ -148,7 +149,7 @@ export function createHighlighterSourceSnapshotSession(
         status: 'captured',
     });
 
-    function resolve(highlighterFile: string) {
+    function resolve(highlighterFile: HighlighterFileLocator) {
         const cached = resolutions.get(highlighterFile);
         if (cached) return cached;
 

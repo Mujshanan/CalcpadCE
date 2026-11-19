@@ -1,88 +1,289 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-    bindHighlighterOutput,
+    adaptHighlighterOutput,
+    BLOCKS_HIGHLIGHTER_CONTRACT_ID,
+    BLOCKS_HIGHLIGHTER_CONTRACT_VERSION,
+    createHighlighterSourceSnapshotSession,
     type HighlighterStructuralOutput,
 } from '../../src/integrations/calcpad/highlighter-contract';
-import {
-    createHighlighterSourceBufferProvider,
-    type SourceBufferSnapshot,
-    type SourceSnapshotProvider,
+import type {
+    SourceBufferSnapshot,
+    SourceSnapshotProvider,
 } from '../../src/core/source/contracts';
 
-function snapshotsOf(entries: readonly SourceBufferSnapshot[]): SourceSnapshotProvider {
+const rootSnapshot: SourceBufferSnapshot = {
+    fileId: 'host:main',
+    revision: 'root-r1',
+    text: 'x = 1',
+    writable: true,
+};
+
+function hostOf(entries: readonly SourceBufferSnapshot[]): SourceSnapshotProvider {
     const snapshots = new Map(entries.map((entry) => [entry.fileId, entry]));
     return { getSnapshot: (fileId) => snapshots.get(fileId) };
 }
 
-test('binds ranges to the exact file snapshot revision', () => {
-    const output: HighlighterStructuralOutput = {
-        constructs: [{
-            kind: 'VariableDefinition',
-            range: { file: '/work/main.cpd', startLine: 0, startColumn: 0, endLine: 0, endColumn: 1 },
-            text: 'x', origin: 'Local', name: 'x',
-        }],
+function session(
+    included: readonly SourceBufferSnapshot[] = [],
+    resolve: (file: string) => { fileId: string; locator?: string } | undefined =
+        (file) => file === '/resolved/lib.cpd'
+            ? { fileId: 'host:library', locator: file }
+            : undefined,
+) {
+    return createHighlighterSourceSnapshotSession(
+        rootSnapshot,
+        '/workspace/main.cpd',
+        hostOf(included),
+        resolve,
+    );
+}
+
+function construct(
+    overrides: Partial<HighlighterStructuralOutput['constructs'][number]> = {},
+) {
+    return {
+        kind: 'VariableDefinition',
+        range: {
+            file: '/workspace/main.cpd',
+            startLine: 0,
+            startColumn: 0,
+            endLine: 0,
+            endColumn: 1,
+        },
+        text: 'x',
+        origin: 'Local',
+        name: 'x',
+        ...overrides,
     };
-    const bound = bindHighlighterOutput(output, snapshotsOf([{
-        fileId: '/work/main.cpd', revision: 'r17', text: 'x = 1', writable: true,
-    }]));
-    assert.equal(bound[0].mapping, 'verified');
-    assert.equal(bound[0].source?.revision, 'r17');
-    assert.equal(bound[0].editable, true);
+}
+
+test('emits the versioned Blocks contract and preserves Highlighter order', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [
+            construct({ kind: 'Comment', text: '// first' }),
+            construct({ kind: 'VariableDefinition', text: 'x' }),
+        ],
+    }, session());
+
+    assert.equal(result.contractId, BLOCKS_HIGHLIGHTER_CONTRACT_ID);
+    assert.equal(result.contractVersion, BLOCKS_HIGHLIGHTER_CONTRACT_VERSION);
+    assert.deepEqual(result.constructs.map((item) => item.projectionIndex), [0, 1]);
+    assert.deepEqual(result.constructs.map((item) => item.rawKind), ['Comment', 'VariableDefinition']);
+    assert.equal(result.capabilities.containmentRelationships, false);
+    assert.equal(result.capabilities.completeSourceCoverage, false);
+    assert.equal(result.capabilities.semanticSpanRoles, false);
 });
 
-test('does not invent a revision when an include snapshot is missing', () => {
-    const output: HighlighterStructuralOutput = {
-        constructs: [{
-            kind: 'VariableDefinition',
-            range: { file: '/work/lib.cpd', startLine: 0, startColumn: 0, endLine: 0, endColumn: 1 },
-            text: 'x', origin: 'IncludedFile',
-        }],
-    };
-    const bound = bindHighlighterOutput(output, snapshotsOf([]));
-    assert.equal(bound[0].mapping, 'bufferUnavailable');
-    assert.equal(bound[0].source, undefined);
-    assert.equal(bound[0].editable, false);
+test('maps Highlighter locators to stable host identities, not path-shaped IDs', () => {
+    const snapshots = session([{
+        fileId: 'host:library',
+        revision: 'lib-r7',
+        text: 'y = 2',
+        writable: true,
+    }]);
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            range: {
+                file: '/resolved/lib.cpd',
+                startLine: 0,
+                startColumn: 0,
+                endLine: 0,
+                endColumn: 1,
+            },
+            origin: 'IncludedFile',
+            text: 'y',
+            name: 'y',
+        })],
+    }, snapshots);
+
+    assert.equal(result.constructs[0].mapping, 'verified');
+    assert.equal(result.constructs[0].source?.fileId, 'host:library');
+    assert.equal(result.constructs[0].source?.range.file, 'host:library');
+    assert.equal(result.constructs[0].source?.revision, 'lib-r7');
+    assert.equal(result.constructs[0].sourceLocator, '/resolved/lib.cpd');
+    assert.equal(result.constructs[0].editable, true);
+    assert.deepEqual(result.sourceManifest.map((entry) => ({
+        highlighterFile: entry.highlighterFile,
+        fileId: entry.fileId,
+        revision: entry.revision,
+        status: entry.status,
+    })), [
+        {
+            highlighterFile: '/workspace/main.cpd',
+            fileId: 'host:main',
+            revision: 'root-r1',
+            status: 'captured',
+        },
+        {
+            highlighterFile: '/resolved/lib.cpd',
+            fileId: 'host:library',
+            revision: 'lib-r7',
+            status: 'captured',
+        },
+    ]);
 });
 
-test('keeps generated constructs read-only even with a writable buffer', () => {
-    const output: HighlighterStructuralOutput = {
-        constructs: [{
-            kind: 'MacroCall',
-            range: { file: '/work/main.cpd', startLine: 0, startColumn: 0, endLine: 0, endColumn: 1 },
-            text: '$', origin: 'Generated',
-        }],
-    };
-    const bound = bindHighlighterOutput(output, snapshotsOf([{
-        fileId: '/work/main.cpd', revision: 'r18', text: '$', writable: true,
-    }]));
-    assert.equal(bound[0].mapping, 'verified');
-    assert.equal(bound[0].editable, false);
-});
-
-test('preserves constructs without source ranges as unmapped', () => {
-    const output: HighlighterStructuralOutput = {
-        constructs: [{
-            kind: 'HtmlOrMarkdownContent', range: null, text: null, origin: 'Unknown',
-        }],
-    };
-    const bound = bindHighlighterOutput(output, snapshotsOf([]));
-    assert.equal(bound[0].mapping, 'unmapped');
-    assert.equal(bound[0].source, undefined);
-});
-
-test('caches each include snapshot for the lifetime of one Highlighter request', () => {
-    let revision = 'before';
+test('captures each include snapshot once for the entire projection session', () => {
+    let revision = 'lib-before';
     const host: SourceSnapshotProvider = {
         getSnapshot(fileId) {
-            return { fileId, revision, text: revision, writable: true };
+            return {
+                fileId,
+                revision,
+                text: revision,
+                writable: true,
+            };
         },
     };
-    const root = { fileId: '/work/main.cpd', revision: 'root-1', text: 'x=1', writable: true };
-    const provider = createHighlighterSourceBufferProvider(root, host);
-    assert.equal(provider.tryGetSource('/work/lib.cpd'), 'before');
-    revision = 'after';
-    assert.equal(provider.tryGetSource('/work/lib.cpd'), 'before');
-    assert.equal(provider.getSnapshot('/work/lib.cpd')?.revision, 'before');
-    assert.equal(provider.getSnapshot(root.fileId)?.revision, 'root-1');
+    const snapshots = createHighlighterSourceSnapshotSession(
+        rootSnapshot,
+        '/workspace/main.cpd',
+        host,
+        (file) => file === '/resolved/lib.cpd'
+            ? { fileId: 'host:library' }
+            : undefined,
+    );
+
+    assert.equal(snapshots.tryGetSource('/resolved/lib.cpd'), 'lib-before');
+    revision = 'lib-after';
+    assert.equal(snapshots.tryGetSource('/resolved/lib.cpd'), 'lib-before');
+    assert.equal(
+        snapshots.getSnapshotForHighlighterFile('/resolved/lib.cpd')?.revision,
+        'lib-before',
+    );
+});
+
+test('reports identityUnavailable instead of treating an include path as a host ID', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            range: {
+                file: '/unmapped/library.cpd',
+                startLine: 0,
+                startColumn: 0,
+                endLine: 0,
+                endColumn: 1,
+            },
+            origin: 'IncludedFile',
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].mapping, 'identityUnavailable');
+    assert.equal(result.constructs[0].source, undefined);
+    assert.equal(result.constructs[0].editable, false);
+    assert.equal(result.diagnostics[0].code, 'source-identity-unavailable');
+    assert.equal(result.sourceManifest[1].status, 'identityUnavailable');
+});
+
+test('reports bufferUnavailable when a stable host identity has no captured snapshot', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            range: {
+                file: '/resolved/lib.cpd',
+                startLine: 0,
+                startColumn: 0,
+                endLine: 0,
+                endColumn: 1,
+            },
+            origin: 'IncludedFile',
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].mapping, 'bufferUnavailable');
+    assert.equal(result.constructs[0].source, undefined);
+    assert.equal(result.diagnostics[0].code, 'source-buffer-unavailable');
+});
+
+test('rejects a snapshot whose identity does not match the resolved host identity', () => {
+    const host: SourceSnapshotProvider = {
+        getSnapshot: () => ({
+            fileId: 'host:other',
+            revision: 'wrong',
+            text: 'y = 2',
+            writable: true,
+        }),
+    };
+    const snapshots = createHighlighterSourceSnapshotSession(
+        rootSnapshot,
+        '/workspace/main.cpd',
+        host,
+        () => ({ fileId: 'host:library' }),
+    );
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            range: {
+                file: '/resolved/lib.cpd',
+                startLine: 0,
+                startColumn: 0,
+                endLine: 0,
+                endColumn: 1,
+            },
+            origin: 'IncludedFile',
+        })],
+    }, snapshots);
+
+    assert.equal(result.constructs[0].mapping, 'identityMismatch');
+    assert.equal(result.diagnostics[0].code, 'source-identity-mismatch');
+});
+
+test('rejects invalid ranges without manufacturing source references', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            range: {
+                file: '/workspace/main.cpd',
+                startLine: 0,
+                startColumn: 0,
+                endLine: 0,
+                endColumn: 99,
+            },
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].mapping, 'invalidRange');
+    assert.equal(result.constructs[0].source, undefined);
+    assert.equal(result.constructs[0].editable, false);
+    assert.equal(result.diagnostics[0].code, 'source-range-invalid');
+});
+
+test('preserves constructs without ranges as explicitly unmapped', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            kind: 'HtmlOrMarkdownContent',
+            range: null,
+            text: null,
+            origin: 'Unknown',
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].mapping, 'unmapped');
+    assert.equal(result.constructs[0].source, undefined);
+    assert.equal(result.diagnostics[0].code, 'range-unavailable');
+});
+
+test('keeps generated constructs read-only even when their source range maps', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            kind: 'MacroCall',
+            text: '$',
+            origin: 'Generated',
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].mapping, 'verified');
+    assert.equal(result.constructs[0].editable, false);
+});
+
+test('preserves unknown future kinds and origins without inventing semantics', () => {
+    const result = adaptHighlighterOutput({
+        constructs: [construct({
+            kind: 'FutureConstructKind',
+            origin: 'FutureOrigin',
+        })],
+    }, session());
+
+    assert.equal(result.constructs[0].kind, 'Unknown');
+    assert.equal(result.constructs[0].rawKind, 'FutureConstructKind');
+    assert.equal(result.constructs[0].origin, 'Unknown');
+    assert.equal(result.constructs[0].rawOrigin, 'FutureOrigin');
+    assert.equal(result.constructs[0].spanRole, 'unknown');
 });

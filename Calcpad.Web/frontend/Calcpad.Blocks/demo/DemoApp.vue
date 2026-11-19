@@ -147,7 +147,7 @@ function onHighlightStatus(message: string, ok: boolean): void {
                         <optgroup label="3D, Plotting, Drawing">
                             <option value="parametric-svg">Parametric SVG Generation</option>
                         </optgroup>
-                        <optgroup label="Matrices">
+                        <optgroup label="Structural · Steel">\n                            <option value="steel-i-section">I-Section Properties · Eurocode</option>\n                        </optgroup>\n                        <optgroup label="Matrices">
                             <option value="matrix-indexing">Matrix Initialization and Indexing</option>
                             <option value="matrix-functions">Matrix Math Functions</option>
                         </optgroup>

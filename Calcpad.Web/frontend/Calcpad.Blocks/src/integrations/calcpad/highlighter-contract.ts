@@ -159,7 +159,7 @@ export function createHighlighterSourceSnapshotSession(
     resolutions.set(rootHighlighterFile, Object.freeze({
         identity: Object.freeze({ fileId: root.fileId, locator: rootHighlighterFile }),
         snapshot: root,
-        status: 'captured',
+        status: 'captured' as const,
     }));
 
     function resolve(highlighterFile: HighlighterFileLocator): HighlighterSourceResolution {
@@ -168,7 +168,7 @@ export function createHighlighterSourceSnapshotSession(
 
         const resolvedIdentity = resolveIdentity(highlighterFile);
         if (!resolvedIdentity || !resolvedIdentity.fileId) {
-            const missing: HighlighterSourceResolution = Object.freeze({ status: 'identityUnavailable' });
+            const missing: HighlighterSourceResolution = Object.freeze({ status: 'identityUnavailable' as const });
             resolutions.set(highlighterFile, missing);
             return missing;
         }
@@ -184,7 +184,7 @@ export function createHighlighterSourceSnapshotSession(
         if (!candidate) {
             const missing: HighlighterSourceResolution = Object.freeze({
                 identity,
-                status: 'bufferUnavailable',
+                status: 'bufferUnavailable' as const,
             });
             resolutions.set(highlighterFile, missing);
             return missing;
@@ -193,7 +193,7 @@ export function createHighlighterSourceSnapshotSession(
         if (candidate.fileId !== identity.fileId) {
             const mismatch: HighlighterSourceResolution = Object.freeze({
                 identity,
-                status: 'identityMismatch',
+                status: 'identityMismatch' as const,
             });
             resolutions.set(highlighterFile, mismatch);
             return mismatch;
@@ -203,7 +203,7 @@ export function createHighlighterSourceSnapshotSession(
         const result: HighlighterSourceResolution = Object.freeze({
             identity,
             snapshot: captured,
-            status: 'captured',
+            status: 'captured' as const,
         });
         resolutions.set(highlighterFile, result);
         return result;

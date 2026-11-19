@@ -5,6 +5,12 @@ export {
     CalcpadWorksheetSchema,
     createCalcpadBlockSchema,
 } from './schema';
+export type {
+    BlockSuiteDocumentAdapter,
+    BlockSuiteDocumentHandle,
+    BlockSuiteDocumentInput,
+} from './adapter-contract';
+export { createStableBlockSuiteAdapter } from './stable-store-adapter';
 export {
     createCalcpadBlockDocument,
     serializeCalcpadBlockProjection,

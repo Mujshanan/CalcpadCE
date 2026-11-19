@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
     createCalcpadBlockDocument,
     serializeCalcpadBlockProjection,
+    type BlockSuiteDocumentAdapter,
 } from '../../src/blocksuite';
 
 test('creates a read-only BlockSuite projection without changing source text', () => {
@@ -16,17 +17,16 @@ test('creates a read-only BlockSuite projection without changing source text', (
 
     try {
         assert.equal(document.getSourceText(), source);
-        assert.equal(document.store.readonly, true);
+        assert.equal(document.isReadOnly, true);
+        assert.equal(document.blockCount, 2);
         assert.ok(document.rootBlockId);
         assert.ok(document.sourceBlockId);
-        assert.equal(document.store.root?.children.length, 1);
-        assert.equal(document.store.blockSize, 2);
     } finally {
         document.dispose();
     }
 });
 
-test('serializes and restores the disposable BlockSuite projection snapshot', () => {
+test('serializes a disposable projection snapshot without treating it as source persistence', () => {
     const source = 'x = 4\ny = x^2';
     const document = createCalcpadBlockDocument({
         documentId: 'worksheet-snapshot',
@@ -56,23 +56,59 @@ test('serializes and restores the disposable BlockSuite projection snapshot', ()
     }
 });
 
+test('allows the BlockSuite runtime to be replaced behind a small adapter contract', () => {
+    let disposed = false;
+    const adapter: BlockSuiteDocumentAdapter = {
+        createDocument(input) {
+            return {
+                rootBlockId: 'runtime-root',
+                sourceBlockId: 'runtime-text',
+                isReadOnly: true,
+                blockCount: 2,
+                getSourceText: () => input.sourceText,
+                createSnapshot: () => ({ revision: input.sourceRevision }),
+                dispose: () => { disposed = true; },
+            };
+        },
+    };
+
+    const document = createCalcpadBlockDocument({
+        documentId: 'host-doc',
+        sourceFileId: 'host-file',
+        sourceRevision: 'host-revision',
+        sourceText: 'a = 1',
+    }, adapter);
+
+    assert.equal(document.getSourceText(), 'a = 1');
+    assert.deepEqual(document.createProjectionSnapshot(), { revision: 'host-revision' });
+    document.dispose();
+    assert.equal(disposed, true);
+    assert.throws(() => document.getSourceText(), /disposed/);
+});
+
 test('requires stable host identity and revision before creating a projection', () => {
+    const adapter: BlockSuiteDocumentAdapter = {
+        createDocument() {
+            throw new Error('The adapter must not be called for invalid host input.');
+        },
+    };
+
     assert.throws(() => createCalcpadBlockDocument({
         documentId: '',
         sourceFileId: 'file-1',
         sourceRevision: 'rev-1',
         sourceText: '',
-    }));
+    }, adapter));
     assert.throws(() => createCalcpadBlockDocument({
         documentId: 'doc-1',
         sourceFileId: '',
         sourceRevision: 'rev-1',
         sourceText: '',
-    }));
+    }, adapter));
     assert.throws(() => createCalcpadBlockDocument({
         documentId: 'doc-1',
         sourceFileId: 'file-1',
         sourceRevision: '',
         sourceText: '',
-    }));
+    }, adapter));
 });

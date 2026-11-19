@@ -1,83 +1,43 @@
-import {
-    DocCollection,
-    Text,
-    type DocSnapshot,
-} from '@blocksuite/store';
-import {
-    CALCPAD_TEXT_FLAVOUR,
-    CALCPAD_WORKSHEET_FLAVOUR,
-    createCalcpadBlockSchema,
-} from './schema';
+import type {
+    BlockSuiteDocumentAdapter,
+    BlockSuiteDocumentHandle,
+    BlockSuiteDocumentInput,
+} from './adapter-contract';
+import { createStableBlockSuiteAdapter } from './stable-store-adapter';
 
-export interface CalcpadBlockDocumentInput {
-    /** Host document identity; never generated from a BlockSuite block ID. */
-    readonly documentId: string;
-    readonly sourceFileId: string;
-    readonly sourceRevision: string;
-    readonly sourceText: string;
-    readonly projectionId?: string;
-}
+export type CalcpadBlockDocumentInput = BlockSuiteDocumentInput;
 
 export interface CalcpadBlockDocument {
     readonly documentId: string;
     readonly sourceRevision: string;
     readonly rootBlockId: string;
     readonly sourceBlockId: string;
-    /** BlockSuite runtime model, exposed for the package's renderer only. */
-    readonly store: ReturnType<ReturnType<DocCollection['createDoc']>['getStore']>;
-    /** Read the text from the BlockSuite model, not from a parallel UI copy. */
+    readonly isReadOnly: boolean;
+    readonly blockCount: number;
     getSourceText(): string;
     /** Export a disposable BlockSuite snapshot for diagnostics/tests, never source persistence. */
-    createProjectionSnapshot(): DocSnapshot;
+    createProjectionSnapshot(): unknown;
     dispose(): void;
 }
 
 /**
- * Creates an isolated, read-only BlockSuite projection of one immutable source
- * snapshot. The document is intentionally one text block until Highlighter
- * supplies reliable semantic spans and containment relationships.
+ * Creates an isolated, read-only block projection of one immutable source
+ * snapshot. A caller may inject another adapter without changing Calcpad's
+ * document or UI contracts.
  *
- * This collection is transient: callers must dispose it when the source
- * revision changes or the view unmounts. Do not persist this snapshot or use
- * BlockSuite IDs as Calcpad document/block identities.
+ * The default adapter uses the stable BlockSuite store. The projection is
+ * intentionally one text block until Highlighter supplies reliable semantic
+ * spans and containment relationships.
  */
 export function createCalcpadBlockDocument(
     input: CalcpadBlockDocumentInput,
+    adapter: BlockSuiteDocumentAdapter = createStableBlockSuiteAdapter(),
 ): CalcpadBlockDocument {
     if (!input.documentId.trim()) throw new Error('A host document ID is required.');
     if (!input.sourceFileId.trim()) throw new Error('A host source file ID is required.');
     if (!input.sourceRevision.trim()) throw new Error('A source revision is required.');
 
-    const schema = createCalcpadBlockSchema();
-    const collection = new DocCollection({ schema });
-    collection.meta.initialize();
-
-    const doc = collection.createDoc(input.documentId);
-    let rootBlockId = '';
-    let sourceBlockId = '';
-
-    doc.load(() => {
-        rootBlockId = doc.addBlock(CALCPAD_WORKSHEET_FLAVOUR, {
-            documentId: input.documentId,
-            sourceRevision: input.sourceRevision,
-            projectionId: input.projectionId ?? input.sourceRevision,
-        });
-        sourceBlockId = doc.addBlock(CALCPAD_TEXT_FLAVOUR, {
-            text: new Text(input.sourceText),
-            sourceFileId: input.sourceFileId,
-            sourceRevision: input.sourceRevision,
-            sourceStart: 0,
-            sourceEnd: input.sourceText.length,
-            sourceOrigin: 'Local',
-            projectionKey: 'source:0',
-            editable: false,
-        }, rootBlockId);
-    });
-
-    const store = doc.getStore();
-    // Source edits and undo/redo remain exclusively in the host application.
-    store.readonly = true;
-
+    const handle: BlockSuiteDocumentHandle = adapter.createDocument(input);
     let disposed = false;
 
     function assertActive(): void {
@@ -87,25 +47,28 @@ export function createCalcpadBlockDocument(
     return {
         documentId: input.documentId,
         sourceRevision: input.sourceRevision,
-        rootBlockId,
-        sourceBlockId,
-        store,
+        rootBlockId: handle.rootBlockId,
+        sourceBlockId: handle.sourceBlockId,
+        get isReadOnly() {
+            assertActive();
+            return handle.isReadOnly;
+        },
+        get blockCount() {
+            assertActive();
+            return handle.blockCount;
+        },
         getSourceText() {
             assertActive();
-            const block = store.getBlock(sourceBlockId);
-            const model = block?.model as { readonly text?: { toString(): string } } | undefined;
-            return model?.text?.toString() ?? '';
+            return handle.getSourceText();
         },
         createProjectionSnapshot() {
             assertActive();
-            const snapshot = store.getTransformer().docToSnapshot(doc);
-            if (!snapshot) throw new Error('BlockSuite could not snapshot the current projection.');
-            return JSON.parse(JSON.stringify(snapshot)) as DocSnapshot;
+            return handle.createSnapshot();
         },
         dispose() {
             if (disposed) return;
             disposed = true;
-            collection.dispose();
+            handle.dispose();
         },
     };
 }

@@ -4,19 +4,29 @@
 **BlockSuite version:** `@blocksuite/store@0.22.4`  
 **Scope:** Phase 5 only; Calcpad Web integration and source editing remain out of scope.
 
-## Runtime
+## Runtime and replaceable adapter
 
 The package now creates a real BlockSuite `DocCollection`, `Doc`, and `Store`
-using the Calcpad-owned schema. The initial document has one worksheet root and
-one source-text leaf. A small Vue renderer displays the text from the BlockSuite
-model itself, not from a parallel copy.
+through a dedicated `BlockSuiteDocumentAdapter` boundary. The stable adapter is
+implemented with `@blocksuite/store@0.22.4`; Calcpad's document and Vue UI
+contracts do not expose BlockSuite classes. A different BlockSuite release or
+runtime can be substituted by implementing the same adapter contract.
 
-This is intentionally a single text block. Current Highlighter output is flat,
-its ranges may be token-sized, and it does not provide containment. The package
-must not manufacture semantic blocks or nesting from that output.
+The initial document has one worksheet root and one source-text leaf. The Vue
+renderer reads the text from the BlockSuite model itself, not from a parallel
+copy. This is a deliberately narrow visual vertical slice, not an AFFiNE
+PageEditor preset.
 
-The projection is read-only. It is rebuilt when the host supplies a new document,
-file, revision, or source snapshot, and disposed when replaced or unmounted.
+The document is rebuilt when the host supplies a new document, file, revision,
+or source snapshot, and disposed when replaced or unmounted.
+
+## Projection fidelity
+
+Current Highlighter output is flat, its ranges may be token-sized, and it does
+not provide containment. The initial BlockSuite document therefore contains
+one full-source text block. It does not infer semantic boundaries or nesting.
+The full source is kept as a single text value so whitespace and CRLF are not
+split or normalized by the projection layer.
 
 ## Ownership and persistence
 
@@ -57,7 +67,7 @@ npm run typecheck
 npm run build
 ```
 
-The test suite covers schema registration/relationships, source-fidelity in the
-runtime model, read-only behavior, projection snapshot serialization, and
-required host identity. These commands still need to be run in a real package
+The test suite covers schema registration/relationships, source fidelity in the
+runtime model, read-only behavior, adapter substitution/disposal, and projection
+snapshot serialization. These commands still need to be run in a real package
 environment before the phase is marked verified.

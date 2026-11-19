@@ -435,10 +435,10 @@ namespace Calcpad.Highlighter.ContentResolution
             {
                 var line = include.OriginalLine;
                 var column = stage2Column;
-                if (include.Segments is { Count: > 0 } segments)
+                if (include.Segments is { Count: > 0 } includeSegments)
                 {
                     var found = false;
-                    foreach (var segment in segments)
+                    foreach (var segment in includeSegments)
                     {
                         if (stage2Column >= segment.StartColumn &&
                             stage2Column < segment.StartColumn + segment.Length)
@@ -465,10 +465,10 @@ namespace Calcpad.Highlighter.ContentResolution
             var originalLine = stage1Line;
             var originalColumn = stage2Column;
             if (staged.Stage1.LineContinuationSegments is not null &&
-                staged.Stage1.LineContinuationSegments.TryGetValue(stage1Line, out var segments))
+                staged.Stage1.LineContinuationSegments.TryGetValue(stage1Line, out var continuationSegments))
             {
                 var found = false;
-                foreach (var segment in segments)
+                foreach (var segment in continuationSegments)
                 {
                     if (stage2Column >= segment.StartColumn &&
                         stage2Column < segment.StartColumn + segment.Length)

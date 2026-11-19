@@ -12,12 +12,12 @@ The package contains:
 - A versioned Blocks adapter for the current flat Calcpad.Highlighter structural-output shape.
 - Explicit mapping from Highlighter file locators to stable host-owned file identities.
 - Per-projection snapshot capture and a source manifest.
-- Conservative mapping statuses, unknown-kind/origin preservation, and UTF-16 range validation.
+- Conservative mapping statuses, unknown-kind/origin preservation, numeric and string enum compatibility, and UTF-16 range validation.
 - A minimal Vue inspection workbench.
 
-The adapter preserves the Highlighter's construct order and raw kind/origin values. It does not infer semantic span roles, statement/container boundaries, containment, complete source coverage, embedded-content subtypes, or macro provenance relationships.
+The adapter preserves the Highlighter's construct order and raw kind/origin values. It accepts the numeric enum ordinals emitted by the current ASP.NET Core/System.Text.Json web defaults as well as string enum values, and retains unknown raw values. A shared C# JSON fixture is checked by a .NET serialization test and consumed by the TypeScript adapter test. It does not infer semantic span roles, statement/container boundaries, containment, complete source coverage, embedded-content subtypes, or macro provenance relationships.
 
-The current workbench shows original source unchanged beside the flat constructs returned by Highlighter. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships. HBC-M3 compatibility test cases have been added, but `npm test`, `npm run typecheck`, and `npm run build` have not yet been executed for this branch.
+The current workbench shows original source unchanged beside the flat constructs returned by Highlighter. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships. HBC-M3 compatibility tests include a shared C#-serialized JSON fixture consumed by TypeScript. The .NET serialization test, `npm test`, `npm run typecheck`, and `npm run build` are wired into the HBC-M3 validation workflow; execution results remain pending.
 
 The UI is not yet wired into calcpad-web. BlockSuite integration remains a separate step after the source projection contract is complete; the BlockSuite document must remain an ephemeral rendering projection, never another persisted worksheet or undo history.
 

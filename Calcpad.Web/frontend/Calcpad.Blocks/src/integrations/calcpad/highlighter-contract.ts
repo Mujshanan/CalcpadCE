@@ -1,41 +1,45 @@
 import {
     canEditSource,
+    type SourceBufferSnapshot,
     type SourceOrigin,
     type SourceReference,
-    type SourceSnapshotProvider,
     type SourceRange,
 } from '../../core/source/contracts';
 import { sourceRangeToOffsets } from '../../core/source/range';
 
-/** Names currently defined by Calcpad.Highlighter.StructuralConstructKind. */
-export type HighlighterConstructKind =
-    | 'Comment'
-    | 'HtmlOrMarkdownContent'
-    | 'VariableDefinition'
-    | 'VariableReassignment'
-    | 'FunctionDefinition'
-    | 'FunctionCall'
-    | 'MacroDefinition'
-    | 'MacroCall'
-    | 'CustomUnitDefinition'
-    | 'ControlFlowDirective'
-    | 'Command'
-    | 'IncludeDirective'
-    | 'DataExchangeDirective'
-    | 'InputDirective'
-    | 'SettingsDirective'
-    | 'MathematicalExpression';
+/**
+ * Blocks-owned adapter contract. This version describes the normalized projection
+ * boundary; it does not claim that Highlighter supplies semantic spans or coverage.
+ */
+export const BLOCKS_HIGHLIGHTER_CONTRACT_ID = 'calcpad.highlighter-to-blocks' as const;
+export const BLOCKS_HIGHLIGHTER_CONTRACT_VERSION = 1 as const;
 
+export const HIGHLIGHTER_CONSTRUCT_KINDS = [
+    'Comment', 'HtmlOrMarkdownContent', 'VariableDefinition', 'VariableReassignment',
+    'FunctionDefinition', 'FunctionCall', 'MacroDefinition', 'MacroCall',
+    'CustomUnitDefinition', 'ControlFlowDirective', 'Command', 'IncludeDirective',
+    'DataExchangeDirective', 'InputDirective', 'SettingsDirective', 'MathematicalExpression',
+] as const;
+
+export type HighlighterConstructKind = typeof HIGHLIGHTER_CONSTRUCT_KINDS[number];
+export type HighlighterOrigin = SourceOrigin;
+
+const knownKinds = new Set<string>(HIGHLIGHTER_CONSTRUCT_KINDS);
+const knownOrigins = new Set<string>([
+    'Local', 'IncludedFile', 'MacroExpansion', 'Generated', 'Unknown',
+]);
+
+/** Wire shape currently serialized from Calcpad.Highlighter.StructuralOutput. */
 export interface HighlighterStructuralConstruct {
-    readonly kind: HighlighterConstructKind;
+    readonly kind: string;
     readonly range: SourceRange | null;
     readonly text: string | null;
-    readonly origin: SourceOrigin;
+    readonly origin: string;
     readonly name?: string | null;
 }
 
+/** Existing Highlighter output is intentionally flat and unversioned. */
 export interface HighlighterStructuralOutput {
-    /** Flat source-ordered constructs; no parent/child links are currently supplied. */
     readonly constructs: readonly HighlighterStructuralConstruct[];
 }
 
@@ -43,64 +47,136 @@ export type ConstructMappingStatus =
     | 'verified'
     | 'unmapped'
     | 'bufferUnavailable'
-    | 'invalidRange';
+    | 'invalidRange'
+    | 'sourceIdentityUnresolved';
+
+export type ConstructSpanRole = 'token' | 'line' | 'construct' | 'unknown';
+
+/**
+ * The host supplies an explicit mapping from Highlighter's file locator (often a
+ * resolved include path) to its stable file ID and immutable captured snapshot.
+ */
+export interface HighlighterSourceBinding {
+    readonly sourceLocator: string;
+    readonly snapshot: SourceBufferSnapshot;
+}
+
+export interface HighlighterProjectionContext {
+    /** Complete set of source snapshots actually supplied to this Highlighter run. */
+    readonly sources: readonly HighlighterSourceBinding[];
+    /** Optional roles are caller assertions; absent roles remain unknown. */
+    readonly spanRoles?: Readonly<Record<number, ConstructSpanRole>>;
+}
+
+export interface ProjectionSourceManifestEntry {
+    readonly sourceLocator: string;
+    readonly fileId: string;
+    readonly revision: string;
+    readonly writable: boolean;
+}
 
 export interface BoundHighlighterConstruct {
-    /** Projection-local identity; do not persist as a document/block ID. */
+    /** Projection-local identity only; never persist as a document/block ID. */
     readonly projectionIndex: number;
-    readonly kind: HighlighterConstructKind;
+    /** Known kind when recognized; unknown future values are preserved in rawKind. */
+    readonly kind: HighlighterConstructKind | 'Unknown';
+    readonly rawKind: string;
     readonly text: string | null;
     readonly name?: string | null;
     readonly origin: SourceOrigin;
+    readonly rawOrigin: string;
     readonly mapping: ConstructMappingStatus;
+    /** A valid source range is not necessarily a complete semantic block span. */
+    readonly spanRole: ConstructSpanRole;
     readonly source?: SourceReference;
     readonly editable: boolean;
 }
 
-/** Bind ranges to the exact snapshots consumed by the projection request. */
-export function bindHighlighterOutput(
+export interface BlocksHighlighterProjection {
+    readonly contractId: typeof BLOCKS_HIGHLIGHTER_CONTRACT_ID;
+    readonly contractVersion: typeof BLOCKS_HIGHLIGHTER_CONTRACT_VERSION;
+    readonly sourceManifest: readonly ProjectionSourceManifestEntry[];
+    readonly constructs: readonly BoundHighlighterConstruct[];
+}
+
+/**
+ * Normalize existing Highlighter output against exactly the snapshots used by the
+ * request. Locator-to-file-ID mapping is explicit; filesystem paths are not IDs.
+ */
+export function adaptHighlighterOutput(
     output: HighlighterStructuralOutput,
-    snapshots: SourceSnapshotProvider,
-): readonly BoundHighlighterConstruct[] {
-    return output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
+    context: HighlighterProjectionContext,
+): BlocksHighlighterProjection {
+    const bindings = new Map(context.sources.map((entry) => [entry.sourceLocator, entry]));
+    const sourceManifest = context.sources.map(({ sourceLocator, snapshot }) => ({
+        sourceLocator,
+        fileId: snapshot.fileId,
+        revision: snapshot.revision,
+        writable: snapshot.writable,
+    }));
+
+    const constructs = output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
+        const rawKind = construct.kind;
+        const rawOrigin = construct.origin;
+        const kind = knownKinds.has(rawKind) ? rawKind as HighlighterConstructKind : 'Unknown';
+        const origin = knownOrigins.has(rawOrigin) ? rawOrigin as SourceOrigin : 'Unknown';
+        const base = {
+            projectionIndex,
+            kind,
+            rawKind,
+            text: construct.text ?? null,
+            name: construct.name ?? null,
+            origin,
+            rawOrigin,
+            spanRole: context.spanRoles?.[projectionIndex] ?? 'unknown' as const,
+            editable: false,
+        };
+
         const range = construct.range;
-        if (!range) {
-            return {
-                projectionIndex, kind: construct.kind, text: construct.text,
-                name: construct.name, origin: construct.origin,
-                mapping: 'unmapped', editable: false,
-            };
-        }
+        if (!range) return { ...base, mapping: 'unmapped' };
 
-        const snapshot = snapshots.getSnapshot(range.file);
-        if (!snapshot) {
-            return {
-                projectionIndex, kind: construct.kind, text: construct.text,
-                name: construct.name, origin: construct.origin,
-                mapping: 'bufferUnavailable', editable: false,
-            };
-        }
+        const binding = bindings.get(range.file);
+        if (!binding) return { ...base, mapping: 'sourceIdentityUnresolved' };
 
-        if (!sourceRangeToOffsets(snapshot.text, range)) {
-            return {
-                projectionIndex, kind: construct.kind, text: construct.text,
-                name: construct.name, origin: construct.origin,
-                mapping: 'invalidRange', editable: false,
-            };
+        const snapshot = binding.snapshot;
+        const hostRange: SourceRange = { ...range, file: snapshot.fileId };
+        if (!sourceRangeToOffsets(snapshot.text, hostRange)) {
+            return { ...base, mapping: 'invalidRange' };
         }
 
         const source: SourceReference = {
-            fileId: range.file,
+            fileId: snapshot.fileId,
             revision: snapshot.revision,
-            range,
-            origin: construct.origin,
+            range: hostRange,
+            origin,
         };
-
         return {
-            projectionIndex, kind: construct.kind, text: construct.text,
-            name: construct.name, origin: construct.origin,
-            mapping: 'verified', source,
-            editable: canEditSource(construct.origin, snapshot),
+            ...base,
+            mapping: 'verified',
+            source,
+            editable: canEditSource(origin, snapshot),
         };
     });
+
+    return {
+        contractId: BLOCKS_HIGHLIGHTER_CONTRACT_ID,
+        contractVersion: BLOCKS_HIGHLIGHTER_CONTRACT_VERSION,
+        sourceManifest,
+        constructs,
+    };
+}
+
+/** Compatibility helper for callers that already use file IDs as Highlighter locators. */
+export function bindHighlighterOutput(
+    output: HighlighterStructuralOutput,
+    snapshots: { getSnapshot(fileId: string): SourceBufferSnapshot | undefined },
+): readonly BoundHighlighterConstruct[] {
+    const sources: HighlighterSourceBinding[] = [];
+    const locators = new Set(output.constructs.flatMap((construct) =>
+        construct.range ? [construct.range.file] : []));
+    for (const sourceLocator of locators) {
+        const snapshot = snapshots.getSnapshot(sourceLocator);
+        if (snapshot) sources.push({ sourceLocator, snapshot });
+    }
+    return adaptHighlighterOutput(output, { sources }).constructs;
 }

@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "vue-tsc --declaration --emitDeclarationOnly --noEmit false --outDir dist/types && vite build",
-    "test": "tsx --test tests/core/source-range.test.ts tests/contracts/highlighter-contract.test.ts tests/contracts/adapter.test.ts tests/ui/session.test.ts tests/ui/filters.test.ts tests/ui/selection.test.ts tests/ui/collapse-state.test.ts tests/ui/diagnostics.test.ts tests/ui/navigation.test.ts tests/ui/workspace.test.ts",
+    "test": "tsx --test tests/core/source-range.test.ts tests/contracts/highlighter-contract.test.ts tests/contracts/adapter.test.ts tests/ui/session.test.ts tests/ui/filters.test.ts tests/ui/selection.test.ts tests/ui/collapse-state.test.ts tests/ui/diagnostics.test.ts tests/ui/navigation.test.ts tests/ui/workspace.test.ts tests/blocksuite/schema.test.ts",
     "typecheck": "vue-tsc --noEmit"
   },
   "peerDependencies": {
@@ -32,5 +32,8 @@
     "vite": "^8.1.3",
     "vue": "^3.5.39",
     "vue-tsc": "^3.3.13"
+  },
+  "dependencies": {
+    "@blocksuite/store": "0.22.4"
   }
 }

@@ -31,7 +31,7 @@ SourceBufferSnapshot contains fileId, revision, text, and writable.
 
 The root snapshot text is passed as content to GetStagedContent. Included-file snapshots are exposed through HighlighterIncludeSourceProvider.tryGetSource, which adapts to the current C# ISourceBufferProvider.TryGetSource contract.
 
-The adapter must return text from the same snapshots whose revisions are attached to projected constructs. It must not fetch a newer include buffer halfway through one projection request.
+The source provider captures the root snapshot immediately and each include snapshot on first access. It then serves the same text and revision for the entire projection request, even if the host buffer changes while resolution is running. A missing include snapshot is also cached as missing for that request.
 
 ## 4. Source references and coordinates
 

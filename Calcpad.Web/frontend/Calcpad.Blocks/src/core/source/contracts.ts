@@ -5,14 +5,9 @@
 export type SourceFileId = string;
 export type SourceRevision = string;
 
-export type SourceOrigin =
-    | 'local'
-    | 'includedFile'
-    | 'macroExpansion'
-    | 'generated'
-    | 'unknown';
+/** Values match Calcpad.Highlighter.ContentResolution.SourceOrigin. */
+export type SourceOrigin = 'Local' | 'IncludedFile' | 'MacroExpansion' | 'Generated' | 'Unknown';
 
-/** Highlighter coordinates: zero-based UTF-16 lines/columns, exclusive end. */
 export interface SourceRange {
     readonly file: SourceFileId;
     readonly startLine: number;
@@ -44,12 +39,29 @@ export interface HighlighterIncludeSourceProvider {
     tryGetSource(fileId: SourceFileId): string | undefined;
 }
 
-export function createHighlighterIncludeSourceProvider(
-    snapshots: SourceSnapshotProvider,
-): HighlighterIncludeSourceProvider {
+export interface HighlighterSourceSnapshotProvider
+    extends SourceSnapshotProvider, HighlighterIncludeSourceProvider {}
+
+/**
+ * Capture the root snapshot immediately and each include snapshot on first access.
+ * The same immutable snapshot is then used both for Highlighter input and revision
+ * binding. Missing buffers are cached as missing for the lifetime of the request.
+ */
+export function createHighlighterSourceBufferProvider(
+    rootSnapshot: SourceBufferSnapshot,
+    hostSnapshots: SourceSnapshotProvider,
+): HighlighterSourceSnapshotProvider {
+    const captured = new Map<string, SourceBufferSnapshot | null>([[rootSnapshot.fileId, rootSnapshot]]);
+    const getSnapshot = (fileId: SourceFileId): SourceBufferSnapshot | undefined => {
+        if (!captured.has(fileId)) {
+            captured.set(fileId, hostSnapshots.getSnapshot(fileId) ?? null);
+        }
+        return captured.get(fileId) ?? undefined;
+    };
     return {
+        getSnapshot,
         tryGetSource(fileId) {
-            return snapshots.getSnapshot(fileId)?.text;
+            return getSnapshot(fileId)?.text;
         },
     };
 }
@@ -91,9 +103,7 @@ export function canEditSource(
     origin: SourceOrigin,
     snapshot: SourceBufferSnapshot | undefined,
 ): boolean {
-    return (
-        snapshot !== undefined &&
+    return snapshot !== undefined &&
         snapshot.writable &&
-        (origin === 'local' || origin === 'includedFile')
-    );
+        (origin === 'Local' || origin === 'IncludedFile');
 }

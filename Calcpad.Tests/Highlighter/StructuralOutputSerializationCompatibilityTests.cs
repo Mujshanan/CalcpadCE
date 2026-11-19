@@ -63,7 +63,7 @@ namespace Calcpad.Tests.Highlighter
             expectedFixture.AsObject().Remove("sourceOriginNames");
 
             Assert.True(
-                JsonNode.DeepEquals(JsonNode.Parse(expectedJson), JsonNode.Parse(actualJson)),
+                JsonNode.DeepEquals(expectedFixture, JsonNode.Parse(actualJson)),
                 $"C# StructuralOutput JSON did not match the shared TypeScript fixture. Actual: {actualJson}");
         }
     }

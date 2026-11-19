@@ -34,18 +34,22 @@ export interface SourceSnapshotProvider {
     getSnapshot(fileId: SourceFileId): SourceBufferSnapshot | undefined;
 }
 
+/** A path/URI-style locator supplied by the current Highlighter include resolver. */
+export type HighlighterFileLocator = string;
+
 /** Mirrors Highlighter ISourceBufferProvider; root source is passed separately. */
 export interface HighlighterIncludeSourceProvider {
-    tryGetSource(fileId: SourceFileId): string | undefined;
+    tryGetSource(highlighterFile: HighlighterFileLocator): string | undefined;
 }
 
 export interface HighlighterSourceSnapshotProvider
     extends SourceSnapshotProvider, HighlighterIncludeSourceProvider {}
 
 /**
- * Capture the root snapshot immediately and each include snapshot on first access.
- * The same immutable snapshot is then used both for Highlighter input and revision
- * binding. Missing buffers are cached as missing for the lifetime of the request.
+ * @deprecated Use createHighlighterSourceSnapshotSession from the Calcpad integration.
+ * This compatibility helper treats Highlighter locators as host file IDs and is safe
+ * only when the host deliberately uses the same canonical value for both identities.
+ * New integrations must resolve Highlighter locators to stable host-owned IDs explicitly.
  */
 export function createHighlighterSourceBufferProvider(
     rootSnapshot: SourceBufferSnapshot,

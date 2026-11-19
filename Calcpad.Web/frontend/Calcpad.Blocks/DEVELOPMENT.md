@@ -13,7 +13,7 @@ The package contains:
 - Explicit mapping from Highlighter file locators to stable host-owned file identities.
 - Per-projection snapshot capture and a source manifest.
 - Conservative mapping statuses, unknown-kind/origin preservation, numeric and string enum compatibility, and UTF-16 range validation.
-- A minimal Vue inspection workbench.
+- A Vue inspection workbench with construct search, selection state, mapping visibility, and explicit host source-navigation actions.
 
 The adapter preserves the Highlighter's construct order and raw kind/origin values. It accepts the numeric enum ordinals emitted by the current ASP.NET Core/System.Text.Json web defaults as well as string enum values, and retains unknown raw values. A shared C# JSON fixture is checked by a .NET serialization test and consumed by the TypeScript adapter test. It does not infer semantic span roles, statement/container boundaries, containment, complete source coverage, embedded-content subtypes, or macro provenance relationships.
 

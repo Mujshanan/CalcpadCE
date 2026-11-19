@@ -145,6 +145,11 @@ namespace Calcpad.Highlighter.ContentResolution
             // resolved paths and root-document line numbers in the existing trace.
             foreach (var include in staged.Stage2.IncludeDirectives ?? new List<IncludeDirectiveInfo>())
             {
+                // MacroTrace's root line for a nested include is the outer root include line,
+                // not the nested directive's physical location. Do not fabricate that range.
+                if (!include.IsRootSource)
+                    continue;
+
                 var stage1Line = include.RootLine - 1;
                 var rootLine = staged.Stage1.SourceMap.GetValueOrDefault(stage1Line, stage1Line);
                 if (!TryGetLine(rootSource, rootLine, out var lineText))

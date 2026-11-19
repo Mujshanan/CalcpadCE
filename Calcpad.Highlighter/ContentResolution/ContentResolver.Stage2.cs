@@ -147,7 +147,9 @@ namespace Calcpad.Highlighter.ContentResolution
                 {
                     Path = include.Path,
                     Name = include.Name,
-                    RootLine = include.RootLine
+                    RootLine = include.RootLine,
+                    IsRootSource = string.IsNullOrEmpty(include.SourceFile) ||
+                        PathComparer.Equals(include.SourceFile, sourceFilePath)
                 }).ToList(),
                 DuplicateMacros = duplicateMacros,
                 MacroParameterOrder = macroParamOrder,

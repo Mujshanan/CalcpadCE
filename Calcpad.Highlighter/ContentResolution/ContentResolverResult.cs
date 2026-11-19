@@ -285,6 +285,7 @@ namespace Calcpad.Highlighter.ContentResolution
         public string Path { get; set; }
         public string Name { get; set; }
         public int RootLine { get; set; }
+        public bool IsRootSource { get; set; }
     }
 
     public class Stage2Result

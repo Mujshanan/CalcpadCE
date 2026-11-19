@@ -30,6 +30,10 @@ test('emits the versioned Blocks contract and binds the exact host snapshot', ()
     });
     assert.equal(projection.contractId, BLOCKS_HIGHLIGHTER_CONTRACT_ID);
     assert.equal(projection.contractVersion, BLOCKS_HIGHLIGHTER_CONTRACT_VERSION);
+    assert.equal(projection.capabilities.sourceCoverage, 'recognized-constructs-only');
+    assert.equal(projection.capabilities.containment, 'not-provided');
+    assert.equal(projection.capabilities.ordering, 'highlighter-output-order-preserved');
+    assert.deepEqual(projection.diagnostics, []);
     assert.deepEqual(projection.sourceManifest, [{
         sourceLocator: '/resolved/main.cpd', fileId: 'host-root-id',
         revision: 'root-r17', writable: true, available: true,
@@ -57,6 +61,7 @@ test('distinguishes a known include locator with an unavailable host snapshot', 
     assert.equal(projection.constructs[0].source, undefined);
     assert.equal(projection.constructs[0].editable, false);
     assert.equal(projection.sourceManifest[0].available, false);
+    assert.equal(projection.diagnostics[0].code, 'bufferUnavailable');
 });
 
 test('does not bind an include path without an explicit host identity mapping', () => {
@@ -123,6 +128,7 @@ test('rejects invalid coordinates against the captured host snapshot', () => {
         sources: [{ sourceLocator: '/resolved/main.cpd', fileId: root.fileId, snapshot: root }],
     });
     assert.equal(projection.constructs[0].mapping, 'invalidRange');
+    assert.equal(projection.diagnostics[0].code, 'invalidRange');
 });
 
 test('legacy binding helper remains available when locator equals host file ID', () => {

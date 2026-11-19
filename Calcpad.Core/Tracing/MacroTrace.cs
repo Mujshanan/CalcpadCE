@@ -95,7 +95,11 @@ namespace Calcpad.Core
     }
 
     /// <param name="Name">The path as written, with path tokens expanded.</param>
-    public readonly record struct MacroTraceInclude(string Path, string Name, int RootLine, string SourceFile = null);
+    public readonly record struct MacroTraceInclude(string Path, string Name, int RootLine)
+    {
+        /// <summary>Source file containing the directive; null when it belongs to the root input.</summary>
+        public string SourceFile { get; init; }
+    }
 
     /// <param name="Start">Offset for <see cref="MacroTrace.TryLocate"/> where the error starts, or -1 for the whole line.</param>
     /// <param name="End">Offset past the error's last character, or -1.</param>

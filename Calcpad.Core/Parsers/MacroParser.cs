@@ -572,7 +572,7 @@ namespace Calcpad.Core
                 {
                     if (fileExists)
                     {
-                        Trace?.Includes.Add(new(resolvedPath, tokenExpanded, lineNumber, SourceFilePath));
+                        Trace?.Includes.Add(new MacroTraceInclude(resolvedPath, tokenExpanded, lineNumber) { SourceFile = SourceFilePath });
                         ParseWithSourcePath(Include(resolvedPath, fields), resolvedPath);
                         return;
                     }

@@ -33,5 +33,8 @@
     "vite": "^8.1.3",
     "vue": "^3.5.39",
     "vue-tsc": "^3.3.13"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.52.2"
   }
 }

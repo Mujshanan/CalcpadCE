@@ -2,7 +2,15 @@
 
 > Status: initial architecture and development plan  
 > Package location: `Calcpad.Web/frontend/Calcpad.Blocks/`  
-> Implementation status: documentation only; no Blocks runtime has been implemented yet.
+> Implementation status: initial source-buffer contracts and a Vue inspection workbench are implemented; the full semantic block projection and BlockSuite editor are not yet implemented.
+
+## Current implementation status
+
+The package now has a minimal Vue 3 workbench, Highlighter structural-output adapter, immutable source snapshot contracts, revision-bound source references, and UTF-16 range conversion tests. See [README.md](README.md) and [SOURCE_BUFFER_CONTRACT.md](SOURCE_BUFFER_CONTRACT.md).
+
+The current workbench is an inspection UI: it shows the original source unchanged beside the flat constructs returned by the current Highlighter output. It deliberately does not split the worksheet into semantic blocks or infer nesting because current ranges can be token-sized and the output has no containment relationships.
+
+The UI is not yet wired into calcpad-web. BlockSuite integration remains a separate step after the source projection contract is complete; the BlockSuite document must remain an ephemeral rendering projection, never another persisted worksheet or undo history.
 
 ## 1. Purpose
 

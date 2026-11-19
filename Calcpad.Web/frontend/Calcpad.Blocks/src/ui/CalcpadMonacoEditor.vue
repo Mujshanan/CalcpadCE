@@ -8,7 +8,8 @@ import {
     isCalcpadTokenInModel,
     mapCalcpadTokenType,
     type CalcpadHighlightResponse,
-    } from '../integrations/calcpad/highlighter-tokens';
+    type CalcpadHighlightToken,
+} from '../integrations/calcpad/highlighter-tokens';
 
 const props = withDefaults(defineProps<CalcpadMonacoEditorProps>(), { apiToken: '', sourceFilePath: '', readOnly: false });
 

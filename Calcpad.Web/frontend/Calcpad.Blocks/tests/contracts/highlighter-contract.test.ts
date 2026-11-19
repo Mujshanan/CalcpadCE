@@ -155,6 +155,38 @@ test('captures each include snapshot once for the entire projection session', ()
     );
 });
 
+test('captures one immutable snapshot for different locators resolving to the same fileId', () => {
+    let calls = 0;
+    const host: SourceSnapshotProvider = {
+        getSnapshot(fileId) {
+            calls++;
+            return { fileId, revision: `revision-${calls}`, text: `source-${calls}`, writable: true };
+        },
+    };
+    const snapshots = createHighlighterSourceSnapshotSession(
+        rootSnapshot,
+        '/workspace/main.cpd',
+        host,
+        (file) => file === '/resolved/a.cpd' || file === '/workspace/./a.cpd'
+            ? { fileId: 'host:shared', locator: file }
+            : undefined,
+    );
+
+    const first = snapshots.resolveHighlighterFile('/resolved/a.cpd');
+    const second = snapshots.resolveHighlighterFile('/workspace/./a.cpd');
+
+    assert.equal(calls, 1);
+    assert.equal(first.snapshot?.revision, 'revision-1');
+    assert.equal(second.snapshot?.revision, 'revision-1');
+    assert.equal(first.snapshot?.text, 'source-1');
+    assert.equal(second.snapshot?.text, 'source-1');
+    assert.deepEqual(
+        snapshots.getManifest().filter((entry) => entry.fileId === 'host:shared')
+            .map((entry) => entry.highlighterFile),
+        ['/resolved/a.cpd', '/workspace/./a.cpd'],
+    );
+});
+
 test('reports identityUnavailable instead of treating an include path as a host ID', () => {
     const result = adaptHighlighterOutput({
         constructs: [construct({

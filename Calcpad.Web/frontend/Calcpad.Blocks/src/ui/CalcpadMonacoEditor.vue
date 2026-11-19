@@ -33,7 +33,7 @@ let languageRegistration: { dispose(): void } | undefined;
 let contentSubscription: { dispose(): void } | undefined;
 let requestSequence = 0;
 
-const legend = new monaco.languages.SemanticTokensLegend([...CALCPAD_SEMANTIC_TOKEN_TYPES], []);
+const legend = { tokenTypes: [...CALCPAD_SEMANTIC_TOKEN_TYPES], tokenModifiers: [] };
 
 function installWorker(): void {
     const scope = globalThis as typeof globalThis & {
@@ -127,33 +127,52 @@ onMounted(() => {
 
     semanticProvider = monaco.languages.registerDocumentSemanticTokensProvider('calcpad', {
         getLegend: () => legend,
-        provideDocumentSemanticTokens: async (model) => {
+        provideDocumentSemanticTokens: async (model, _lastResultId, cancellationToken) => {
             const requestId = ++requestSequence;
             const content = model.getValue();
             try {
                 const tokens = await fetchTokens(content);
-                if (requestId === requestSequence) {
-                    emit('highlighted', tokens);
-                    emit('highlightStatus', `Highlighter: ${tokens.length.toLocaleString()} tokens · live source snapshot`, true);
+                if (requestId !== requestSequence || cancellationToken.isCancellationRequested) {
+                    return { data: new Uint32Array(0) };
                 }
-                const builder = new monaco.languages.SemanticTokensBuilder(legend);
-                for (const token of tokens) {
+                emit('highlighted', tokens);
+                emit('highlightStatus', `Highlighter: ${tokens.length.toLocaleString()} tokens · live source snapshot`, true);
+
+                const sorted = [...tokens].sort((a, b) =>
+                    a.line !== b.line ? a.line - b.line : a.column - b.column,
+                );
+                const data: number[] = [];
+                let previousLine = 0;
+                let previousColumn = 0;
+
+                for (const token of sorted) {
                     const tokenType = mapCalcpadTokenType(token.type);
+                    const tokenTypeIndex = tokenType
+                        ? CALCPAD_SEMANTIC_TOKEN_TYPES.indexOf(tokenType)
+                        : -1;
                     const validRange = isCalcpadTokenInModel(
                         token,
                         model.getLineCount(),
                         (line) => model.getLineMaxColumn(line + 1) - 1,
                     );
-                    if (!tokenType || !validRange) continue;
-                    builder.push(token.line, token.column, token.length, tokenType, []);
+                    if (tokenTypeIndex < 0 || !validRange) continue;
+
+                    const deltaLine = token.line - previousLine;
+                    const deltaColumn = deltaLine === 0
+                        ? token.column - previousColumn
+                        : token.column;
+                    data.push(deltaLine, deltaColumn, token.length, tokenTypeIndex, 0);
+                    previousLine = token.line;
+                    previousColumn = token.column;
                 }
-                return builder.build();
+
+                return { data: new Uint32Array(data) };
             } catch (error) {
-                if (requestId === requestSequence) {
+                if (requestId === requestSequence && !cancellationToken.isCancellationRequested) {
                     emit('highlighted', []);
                     emit('highlightStatus', error instanceof Error ? error.message : String(error), false);
                 }
-                return null;
+                return { data: new Uint32Array(0) };
             }
         },
         releaseDocumentSemanticTokens: () => undefined,

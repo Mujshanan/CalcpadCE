@@ -31,7 +31,7 @@ const tokens = ref<readonly HighlightToken[]>([]);
 const selectedTokenIndex = ref<number | null>(null);
 const highlightStatus = ref('Waiting for the local Calcpad server.');
 const highlightOk = ref(false);
-const editorRef = ref<MonacoEditorHandle>();
+const editorRef = ref<MonacoEditorHandle | null>(null);
 
 const hasDependency = computed(() => Boolean(selectedExample.value.dependency));
 const sourceFileTitle = computed(() =>
@@ -44,7 +44,7 @@ const activeServerPath = computed(() =>
 );
 const sourceLines = computed(() => sourceText.value.split(/\r?\n/));
 
-function selectExample(id: string): void {
+function onExampleChange(event: Event): void {\n    const target = event.target as HTMLSelectElement;\n    selectExample(target.value);\n}\n\nfunction selectExample(id: string): void {
     const example = demoExamples.find((item) => item.id === id);
     if (!example) return;
     selectedExampleId.value = id;
@@ -135,7 +135,7 @@ function onHighlightStatus(message: string, ok: boolean): void {
                 </div>
                 <label class="example-picker">
                     <span>Open example</span>
-                    <select :value="selectedExampleId" @change="selectExample(($event.target as HTMLSelectElement).value)">
+                    <select :value="selectedExampleId" @change="onExampleChange">
                         <optgroup label="3D, Plotting, Drawing">
                             <option value="parametric-svg">Parametric SVG Generation</option>
                         </optgroup>

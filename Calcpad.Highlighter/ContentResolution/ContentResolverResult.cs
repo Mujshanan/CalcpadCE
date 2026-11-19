@@ -279,12 +279,21 @@ namespace Calcpad.Highlighter.ContentResolution
         public Dictionary<int, List<LineContinuationSegment>> LineContinuationSegments { get; set; }
     }
 
+    /// <summary>Resolved include and the root-document line containing its directive.</summary>
+    public sealed class IncludeDirectiveInfo
+    {
+        public string Path { get; set; }
+        public string Name { get; set; }
+        public int RootLine { get; set; }
+    }
+
     public class Stage2Result
     {
         public List<string> Lines { get; set; }
         public Dictionary<int, int> SourceMap { get; set; }
         public Dictionary<int, SourceInfo> IncludeMap { get; set; }
         public List<MacroDefinition> MacroDefinitions { get; set; }
+        public List<IncludeDirectiveInfo> IncludeDirectives { get; set; } = new();
         public List<DuplicateMacro> DuplicateMacros { get; set; }
 
         /// <summary>
@@ -312,6 +321,9 @@ namespace Calcpad.Highlighter.ContentResolution
         /// by re-hashing just these files, without rerunning include resolution/macro expansion.
         /// </summary>
         public Dictionary<string, string> IncludedFileHashes { get; set; } = new(System.StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Exact host-supplied include buffers consumed during this resolution.</summary>
+        internal Dictionary<string, string> IncludedFileSources { get; set; } = new();
 
         /// <summary>Stage 2 lines MacroParser rejected; Core shows them as errors and skips them.</summary>
         public HashSet<int> MacroErrorLines { get; set; } = [];

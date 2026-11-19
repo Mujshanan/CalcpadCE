@@ -143,11 +143,18 @@ namespace Calcpad.Highlighter.ContentResolution
                 SourceMap = sourceMap,
                 IncludeMap = includeMap,
                 MacroDefinitions = macroDefinitions,
+                IncludeDirectives = trace.Includes.Select(include => new IncludeDirectiveInfo
+                {
+                    Path = include.Path,
+                    Name = include.Name,
+                    RootLine = include.RootLine
+                }).ToList(),
                 DuplicateMacros = duplicateMacros,
                 MacroParameterOrder = macroParamOrder,
                 UserDefinedMacros = userDefinedMacros,
                 PathRoots = parser.PathRoots,
                 IncludedFileHashes = includedFileHashes,
+                IncludedFileSources = new Dictionary<string, string>(suppliedBuffers, PathComparer),
                 MacroErrorLines = [.. trace.Errors.Where(e => e.SourceIndex >= 0).Select(e => e.SourceIndex)],
                 MacroErrors = [.. trace.Errors.Where(e => e.SourceIndex >= 0).Select(e => ToMacroError(trace, e))],
                 IsMacroParserComplete = trace.IsComplete

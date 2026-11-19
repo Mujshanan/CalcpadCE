@@ -10,7 +10,7 @@ combined into synthetic worksheets.
 | `3D, Plotting, Drawing/Parametric SVG Generation.cpd` | `Examples/Engineering/3D, Plotting, Drawing/Parametric SVG Generation.cpd` | `f66aea1d2324bc086e086ae76a9230cdc4608ba2` |
 | `3D, Plotting, Drawing/svg_drawing.cpd` | `Examples/Engineering/3D, Plotting, Drawing/svg_drawing.cpd` | `19368a0d9ac6cfd0ccbc5f912aea7794af8baafa` |
 | `Matrices/Matrix Initialization and Indexing.cpd` | `Examples/Engineering/Matrices/Matrix Initialization and Indexing.cpd` | `ea0f76519a469dcb684104b64a6d6d3344a3ccac` |
-| `Matrices/Matrix Math Functions.cpd` | `Examples/Engineering/Matrices/Matrix Math Functions.cpd` | `f4d8453aac73c502d26b98c747956eece347767a` |
+| `Matrices/Matrix Math Functions.cpd` | `Examples/Engineering/Matrices/Matrix Math Functions.cpd` | `f4d8453aac73c502d26b98c747956eece347767a` |\n| `Structural/Steel/I-Section Properties.cpd` | `Examples/Structural/Steel/I-Section Properties.cpd` | `5ffcb5efaad9711f7158037f0832672099021d94` |
 
 The parametric SVG worksheet depends on the adjacent `svg_drawing.cpd` include.
 The fixture text is preserved so syntax and source positions correspond to

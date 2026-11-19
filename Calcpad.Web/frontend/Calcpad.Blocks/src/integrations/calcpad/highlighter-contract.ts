@@ -62,7 +62,7 @@ export function bindHighlighterOutput(
     output: HighlighterStructuralOutput,
     snapshots: SourceSnapshotProvider,
 ): readonly BoundHighlighterConstruct[] {
-    return output.constructs.map((construct, projectionIndex) => {
+    return output.constructs.map<BoundHighlighterConstruct>((construct, projectionIndex) => {
         const range = construct.range;
         if (!range) {
             return {

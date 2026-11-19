@@ -89,6 +89,8 @@ const knownOrigins = new Set<string>(originNames);
 export interface HighlighterSourceRange {
     /** Highlighter-side path/URI locator, not a host SourceFileId. */
     readonly file: HighlighterFileLocator;
+    // Coordinates below are zero-based UTF-16 line/column positions with an exclusive end.
+
     readonly startLine: number;
     readonly startColumn: number;
     readonly endLine: number;
@@ -570,7 +572,10 @@ function normalizeKind(kind: string | number): NormalizedKindResult {
                 diagnostic: 'unknown-kind-ordinal',
             };
         }
-        return { kind: kindNames[kind], status: 'known' };
+        const name = kindNames[kind];
+        return name
+            ? { kind: name, status: 'known' }
+            : { kind: 'Unknown', status: 'unknown', diagnostic: 'unknown-kind-ordinal' };
     }
     if (knownKinds.has(kind)) {
         return { kind: kind as HighlighterConstructKind, status: 'known' };
@@ -587,7 +592,10 @@ function normalizeOrigin(origin: string | number): NormalizedOriginResult {
                 diagnostic: 'unknown-origin-ordinal',
             };
         }
-        return { origin: originNames[origin], status: 'known' };
+        const name = originNames[origin];
+        return name
+            ? { origin: name, status: 'known' }
+            : { origin: 'Unknown', status: 'unknown', diagnostic: 'unknown-origin-ordinal' };
     }
     if (knownOrigins.has(origin)) {
         return { origin: origin as SourceOrigin, status: 'known' };

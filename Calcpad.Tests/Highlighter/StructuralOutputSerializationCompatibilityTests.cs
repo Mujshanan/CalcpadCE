@@ -44,6 +44,18 @@ namespace Calcpad.Tests.Highlighter
                 "Fixtures",
                 "structural-output.web.json");
             var expectedJson = File.ReadAllText(fixturePath);
+            var expectedFixture = JsonNode.Parse(expectedJson);
+            Assert.True(
+                JsonNode.DeepEquals(
+                    expectedFixture["structuralConstructKindNames"],
+                    JsonNode.Parse(JsonSerializer.Serialize(
+                        System.Enum.GetNames(typeof(StructuralConstructKind))))),
+                "StructuralConstructKind names/order changed; update the shared fixture and TypeScript mapping deliberately.");
+            Assert.True(
+                JsonNode.DeepEquals(
+                    expectedFixture["sourceOriginNames"],
+                    JsonNode.Parse(JsonSerializer.Serialize(System.Enum.GetNames(typeof(SourceOrigin))))),
+                "SourceOrigin names/order changed; update the shared fixture and TypeScript mapping deliberately.");
 
             Assert.True(
                 JsonNode.DeepEquals(JsonNode.Parse(expectedJson), JsonNode.Parse(actualJson)),

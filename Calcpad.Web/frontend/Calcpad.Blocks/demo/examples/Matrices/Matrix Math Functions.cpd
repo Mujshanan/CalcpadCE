@@ -1,0 +1,72 @@
+'<style>em {font-family:"Times New Roman";}</style>
+'<p><b>Hprod</b>(<em>first matrix</em>; <em>second matrix</em>)</p><hr/>
+A = [1; 2|3; 4|5; 6]'- first matrix
+B = [9; 8|7; 6|5; 4]'- second matrix
+C = hprod(A; B)'- The Hadamard product of matrices A and B
+
+'<p><b>Fprod</b>(<em>first matrix</em>; <em>second matrix</em>)</p><hr/>
+A = [1; 2|3; 4|5; 6]'- first matrix
+B = [9; 8|7; 6|5; 4]'- second matrix
+C = fprod(A; B)'- the Frobenius product of matrices A and B
+
+'<p><b>Kprod</b>(<em>first matrix</em>; <em>second matrix</em>)</p><hr/>
+A = [1; 2|3; 4]'- first matrix
+B = [5; 6; 7|8; 9; 10]'- second matrix
+C = kprod(A; B)'- the Kronecker product of matrices A and B
+
+'<p><b>Mnorm_1</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+mnorm_1(A)'- the L1 (Manhattan or taxicab) norm of matrix A
+
+'<p><b>Mnorm</b>(<em>matrix</em>) or <b>Mnorm_2</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+mnorm(A)' or
+mnorm_2(A)'- the L2 (spectral) norm of matrix A
+
+'<p><b>Mnorm_е</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+mnorm_e(A)'- the Frobenius (a.k.a. Euclidean) norm of matrix A
+
+'<p><b>Mnorm_i</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+mnorm_i(A)'- the L∞ (infinity) norm of matrix A
+
+'<p><b>Cond_1</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+cond_1(A)'- condition number based on the L1 norm of matrix A
+
+'<p><b>Cond</b>(<em>matrix</em>) or <b>Cond_2</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+cond(A)' or
+cond_2(A)'- condition number based on the L2 norm of matrix A
+
+'<p><b>Cond_е</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+cond_e(A)'- condition number based on  the Frobenius norm of matrix A
+
+'<p><b>Cond_i</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+cond_i(A)'- condition number based on the L∞ norm of matrix A
+
+'<p><b>Det</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+det(A)'- the determinant of matrix A
+
+'<p><b>Rank</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+rank(A)'- the rank of matrix A
+
+'<p><b>Trace</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+trace(A)'- the trace of matrix A
+
+'<p><b>Transp</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2; 3|4; 5; 6|7; 8; 9]
+transp(A)'- the transpose of matrix A
+
+'<p><b>Adj</b>(<em>matrix</em>)</p><hr/>
+A = [1; 2|3; 4]
+adj(A)'- the adjugate of A
+D = det(A)'- the determinant of A
+A_I = inverse(A)'- the inverse of A
+A_I*D'- the inverse multiplied by the determinant should give the adjugate
